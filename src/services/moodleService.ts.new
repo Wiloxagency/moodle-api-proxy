@@ -1,0 +1,174 @@
+import axios, { AxiosResponse } from 'axios';
+import { config } from '../config/environment';
+import { 
+  MoodleWebServiceParams, 
+  MoodleWebServiceFullParams,
+  MoodleCoursesResponse,
+  MoodleCategoriesResponse,
+  MoodleCategoriesApiResponse,
+  MoodleErrorResponse,
+  SimplifiedCoursesResponse,
+  SimplifiedCourse,
+  ApiResponse 
+} from '../types/moodle';
+
+export class MoodleService {
+  private readonly baseUrl: string;
+  private readonly wsToken: string;
+  private readonly webserviceEndpoint: string;
+
+  constructor() {
+    this.baseUrl = config.moodle.baseUrl;
+    this.wsToken = config.moodle.wsToken;
+    this.webserviceEndpoint = config.moodle.webserviceEndpoint;
+  }
+
+  private buildUrl(params: MoodleWebServiceFullParams): string {
+    const url = new URL(this.webserviceEndpoint, this.baseUrl);
+
+    // Add all parameters to URL
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.append(key, value.toString());
+    });
+
+    return url.toString();
+  }
+
+  private async makeRequest<T>(params: MoodleWebServiceParams): Promise<ApiResponse<T>> {
+    try {
+    const fullParams = this.addDefaultParams(params);
+    const url = this.buildUrl(fullParams);
+      
+      const response: AxiosResponse<T | MoodleErrorResponse> = await axios.get(url, {
+        timeout: 10000, // 10 seconds timeout
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Moodle-API-Proxy/1.0'
+        }
+      });
+
+      // Check if response is an error
+      if (this.isMoodleError(response.data)) {
+        return {
+          success: false,
+          error: {
+            message: response.data.message,
+            code: response.data.errorcode,
+            details: response.data
+          }
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data as T
+      };
+
+    } catch (error) {
+      console.error('Moodle API request failed:', error);
+      
+      if (axios.isAxiosError(error)) {
+        return {
+          success: false,
+          error: {
+            message: error.message,
+            code: error.code,
+            details: error.response?.data
+          }
+        };
+      }
+
+      return {
+        success: false,
+        error: {
+          message: 'Unknown error occurred',
+          details: error
+        }
+      };
+    }
+  }
+
+  private isMoodleError(data: any): data is MoodleErrorResponse {
+    return data && typeof data === 'object' && 'exception' in data && 'errorcode' in data;
+  }
+
+  private addDefaultParams(params: MoodleWebServiceParams): MoodleWebServiceFullParams {
+    return {
+      ...params,
+      wstoken: this.wsToken,
+      moodlewsrestformat: 'json'
+    };
+  }
+
+  /**
+   * Get courses by category ID
+   */
+  async getCoursesByCategory(categoryId: number): Promise<ApiResponse<MoodleCoursesResponse>> {
+    return this.makeRequest<MoodleCoursesResponse>({
+      wsfunction: 'core_course_get_courses_by_field',
+      field: 'category',
+      value: categoryId.toString()
+    });
+  }
+
+  /**
+   * Get courses by any field
+   */
+  async getCoursesByField(field: string, value: string): Promise<ApiResponse<MoodleCoursesResponse>> {
+    return this.makeRequest<MoodleCoursesResponse>({
+      wsfunction: 'core_course_get_courses_by_field',
+      field,
+      value
+    });
+  }
+
+  /**
+   * Get all categories (optionally filtered by parent)
+   */
+  async getCategories(parentId?: number): Promise<ApiResponse<MoodleCategoriesApiResponse>> {
+    const params: MoodleWebServiceParams = {
+      wsfunction: 'core_course_get_categories'
+    };
+
+    // Add criteria to filter by parent if specified
+    if (parentId !== undefined) {
+      params['criteria[0][key]'] = 'parent';
+      params['criteria[0][value]'] = parentId.toString();
+    }
+
+    const result = await this.makeRequest<MoodleCategoriesResponse>(params);
+    
+    // Transform the direct array response into our expected format
+    if (result.success && Array.isArray(result.data)) {
+      let filteredCategories = result.data;
+      
+      // If parentId is specified, filter the results (since Moodle might not always respect criteria)
+      if (parentId !== undefined) {
+        filteredCategories = result.data.filter(category => category.parent === parentId);
+      }
+      
+      return {
+        success: true,
+        data: {
+          categories: filteredCategories,
+          warnings: []
+        }
+      };
+    }
+    
+    return {
+      success: result.success,
+      error: result.error
+    };
+  }
+
+  /**
+   * Get root categories (parent = 0)
+   */
+  async getRootCategories(): Promise<ApiResponse<MoodleCategoriesApiResponse>> {
+    return this.getCategories(0);
+  }
+
+  /**
+   * Get enrollment count for a specific course
+   */
