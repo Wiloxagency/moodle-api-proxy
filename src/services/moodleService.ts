@@ -174,37 +174,52 @@ export class MoodleService {
    */
   async getCourseEnrollmentCount(courseId: number): Promise<number> {
     try {
-      const result = await this.makeRequest<any[]>({
-        wsfunction: 'core_enrol_get_enrolled_users',
+      // Fetch all enrolled users and count only active ones
+      const usersResult = await this.makeRequest<any[]>({
+        wsfunction: "core_enrol_get_enrolled_users",
         courseid: courseId.toString(),
-        'options[0][name]': 'limitfrom',
-        'options[0][value]': '0',
-        'options[1][name]': 'limitnumber', 
-        'options[1][value]': '1' // We only need count, not actual users
+        'options[0][name]': 'onlyactive',
+        'options[0][value]': '1'
       });
 
-      if (result.success && Array.isArray(result.data)) {
-        // If we get data, we need to make another request to get the actual count
-        // Let's use a different approach with course contents to get participant count
-        const courseResult = await this.makeRequest<any>({
-          wsfunction: 'core_course_get_contents',
-          courseid: courseId.toString()
-        });
-        
-        // As fallback, try to get users count by making full request
-        const usersResult = await this.makeRequest<any[]>({
-          wsfunction: 'core_enrol_get_enrolled_users',
-          courseid: courseId.toString()
-        });
-        
-        if (usersResult.success && Array.isArray(usersResult.data)) {
-          return usersResult.data.length;
-        }
+      if (usersResult.success && Array.isArray(usersResult.data)) {
+        const now = Math.floor(Date.now() / 1000);
+        const activeUsers = usersResult.data.filter((u: any) => {
+  const suspended = (u as any).suspended;
+  const isSuspended = suspended === true || suspended === 1 || suspended === '1';
+
+  // Consider only students; if roles missing, don't exclude
+  const roles = (u as any).roles;
+  const isStudentRole = Array.isArray(roles)
+    ? roles.some((r: any) => {
+        const sn = String(r?.shortname ?? '').toLowerCase();
+        const archetype = String(r?.archetype ?? '').toLowerCase();
+        return r?.roleid === 5 || sn === 'student' || sn === 'estudiante' || sn === 'alumno' || archetype === 'student';
+      })
+    : true;
+
+  // If enrolment records exist, require at least one active enrolment (status === 0);
+  // otherwise assume active (we already requested onlyactive=1).
+  let hasActiveEnrolment = true;
+  const enrolments = (u as any).enrolments;
+  if (Array.isArray(enrolments) && enrolments.length > 0) {
+    hasActiveEnrolment = enrolments.some((e: any) => {
+      const eStatus = e?.status;
+      const isActiveStatus = eStatus === 0 || eStatus === '0';
+      const eCourseMatch = e?.courseid == null || e?.courseid === courseId;
+      return eCourseMatch && isActiveStatus;
+    });
+  }
+
+  return !isSuspended && isStudentRole && hasActiveEnrolment;
+});
+
+        return activeUsers.length;
       }
-      
+
       return 0;
     } catch (error) {
-      console.warn(`Failed to get enrollment count for course ${courseId}:`, error);
+      console.warn("Failed to get enrollment count for course " + courseId + ":", error);
       return 0; // Return 0 on error to avoid breaking the response
     }
   }
