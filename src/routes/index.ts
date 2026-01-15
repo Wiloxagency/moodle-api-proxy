@@ -6,6 +6,7 @@ import { StudentFinalGradeController } from '../controllers/studentFinalGradeCon
 import { asyncHandler } from '../middleware/errorHandler';
 import inscripcionesRouter from './inscripciones';
 import participantesRouter from './participantes';
+import participantsGradesRouter from './participantsGrades';
 import senceRouter from './sence';
 import empresasRouter from './empresas';
 import ejecutivosRouter from './ejecutivos';
@@ -34,6 +35,7 @@ router.post('/grades/final', asyncHandler(studentFinalGradeController.getFinalGr
 router.use('/inscripciones', inscripcionesRouter);
 // Participantes endpoints
 router.use('/participantes', participantesRouter);
+router.use('/participantes', participantsGradesRouter);
 // Sence configuration endpoints
 router.use('/sence', senceRouter);
 // Empresas configuration endpoints
@@ -68,6 +70,7 @@ router.get('/', (req, res) => {
       importInscripciones: 'POST /api/inscripciones/import',
       participantes: 'GET /api/participantes?numeroInscripcion=INS-0001',
       importParticipantes: 'POST /api/participantes/import',
+      importParticipantesMoodle: 'POST /api/participantes/import/moodle',
       sence: 'CRUD /api/sence',
       empresas: 'CRUD /api/empresas',
       ejecutivos: 'CRUD /api/ejecutivos',

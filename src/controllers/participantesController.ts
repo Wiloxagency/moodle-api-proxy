@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import * as XLSX from 'xlsx';
 import { ObjectId } from 'mongodb';
-import { getParticipantesCollection } from '../db/mongo';
+import { getParticipantesCollection, getInscripcionesCollection } from '../db/mongo';
+import { MoodleService } from '../services/moodleService';
 import { Participante } from '../types/participante';
 
 function toNumber(v: any): number | undefined {
@@ -137,5 +138,105 @@ export class ParticipantesController {
 
     const total = await col.countDocuments();
     res.json({ success: true, data: { insertedOrUpdated: mapped.length, total } });
+  }
+
+
+  // POST /api/participantes/import/moodle { numeroInscripcion }
+  async importFromMoodle(req: Request, res: Response) {
+    const { numeroInscripcion } = req.body as { numeroInscripcion?: string };
+    if (!numeroInscripcion) {
+      return res.status(400).json({ success: false, error: { message: 'numeroInscripcion is required' } });
+    }
+
+    const insCol = await getInscripcionesCollection();
+    const ins = await insCol.findOne({ numeroInscripcion } as any);
+    if (!ins) {
+      return res.status(404).json({ success: false, error: { message: 'Inscripción no encontrada' } });
+    }
+
+    // Determinar el identificador del curso en Moodle
+    const idMoodleRaw = (ins as any).idMoodle as string | undefined;
+    const codigoCursoRaw = (ins as any).codigoCurso as string | undefined;
+    const providedCode = (idMoodleRaw && idMoodleRaw.trim()) || (codigoCursoRaw && codigoCursoRaw.trim()) || '';
+    if (!providedCode) {
+      return res.status(400).json({ success: false, error: { message: 'La inscripción no tiene ID Moodle ni Código del Curso' } });
+    }
+
+    const moodle = new MoodleService();
+
+    // Resolver courseId: si es numérico directo, usarlo; si no, resolver por shortname o idnumber
+    let courseId: number | null = null;
+    const digits = providedCode.replace(/[^0-9]/g, '');
+    if (digits) {
+      const n = Number(digits);
+      if (!Number.isNaN(n) && n > 0) courseId = n;
+    }
+
+    if (!courseId) {
+      // Intentar shortname
+      let courseResp = await moodle.getCoursesByField('shortname', providedCode);
+      if (!courseResp.success || !courseResp.data || (courseResp.data as any).courses?.length === 0) {
+        // Intentar idnumber
+        courseResp = await moodle.getCoursesByField('idnumber', providedCode);
+      }
+      const courses = (courseResp && (courseResp as any).data && (courseResp as any).data.courses) || [];
+      if (courses.length > 0) {
+        // Elegir el primero que coincida exactamente por shortname o idnumber; si no, el primero
+        const exact = courses.find((c: any) => c.shortname === providedCode || c.idnumber === providedCode) || courses[0];
+        courseId = exact.id;
+      }
+    }
+
+    if (!courseId) {
+      return res.status(404).json({ success: false, error: { message: 'No se encontró un curso en Moodle para el código proporcionado' } });
+    }
+
+    const result = await moodle.getEnrolledUsers(courseId);
+    if (!result.success) {
+      const msg = result.error?.message || 'Error consultando Moodle';
+      const lower = msg.toLowerCase();
+      if (lower.includes('course') || lower.includes('curso')) {
+        return res.status(404).json({ success: false, error: { message: 'Curso no encontrado en Moodle' } });
+      }
+      return res.status(502).json({ success: false, error: { message: msg } });
+    }
+
+    const users = (result.data || []) as any[];
+    if (users.length === 0) {
+      return res.json({ success: true, data: { inserted: 0, updated: 0, skipped: 0, total: 0, message: 'El curso no tiene alumnos matriculados' } });
+    }
+
+    // Map Moodle users a Participante
+    const toRut = (u: any): string => {
+      const idnumber = (u.idnumber ?? '').toString().trim();
+      const username = (u.username ?? '').toString().trim();
+      return idnumber || username || String(u.id);
+    };
+    const toTelefono = (u: any): string | undefined => {
+      const t = (u.phone1 || u.phone || u.phone2 || '').toString().trim();
+      return t || undefined;
+    };
+    const mapped = users.map(u => ({
+      numeroInscripcion,
+      nombres: (u.firstname ?? '').toString(),
+      apellidos: (u.lastname ?? '').toString(),
+      rut: toRut(u),
+      mail: (u.email ?? '').toString(),
+      telefono: toTelefono(u),
+    })) as Participante[];
+
+    const col = await getParticipantesCollection();
+    let inserted = 0, updated = 0, skipped = 0;
+    for (const r of mapped) {
+      if (!r.rut) { skipped++; continue; }
+      const resUp = await col.updateOne(
+        { numeroInscripcion: r.numeroInscripcion, rut: r.rut },
+        { $set: r },
+        { upsert: true }
+      );
+      if (resUp.upsertedCount) inserted++; else if (resUp.modifiedCount) updated++; else skipped++;
+    }
+    const total = await col.countDocuments({ numeroInscripcion });
+    return res.json({ success: true, data: { inserted, updated, skipped, total } });
   }
 }
