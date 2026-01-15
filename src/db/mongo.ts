@@ -66,3 +66,11 @@ export async function closeMongo(): Promise<void> {
     db = null;
   }
 }
+
+// Generic counters collection (for sequences)
+export async function getCountersCollection(): Promise<import('mongodb').Collection<{ _id: string; seq: number }>> {
+  const database = await getDb();
+  // @ts-ignore - property added in config
+  const name = (config as any).mongo.countersCollection || 'counters';
+  return database.collection(name);
+}

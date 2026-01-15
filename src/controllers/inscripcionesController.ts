@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { ObjectId } from 'mongodb';
 import * as XLSX from 'xlsx';
-import { getInscripcionesCollection } from '../db/mongo';
+import { getInscripcionesCollection, getCountersCollection } from '../db/mongo';
 import { Inscripcion } from '../types/inscripcion';
 
 function mapExcelRow(row: Record<string, any>): Inscripcion {
@@ -25,16 +25,26 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
     return isNaN(date.getTime()) ? '' : date.toISOString();
   };
 
+  // Helper to normalize modalidad to canonical values
+  const toModalidad = (v: any): string => {
+    const t = String(v || '').trim().toLowerCase();
+    if (t === 'e-learning' || t === 'elearning' || t === 'e learning') return 'e-learning';
+    if (t.includes('sincr')) return 'sincrónico';
+    return t || 'e-learning';
+  };
+
   // Map explicit Spanish headers to internal fields
   return {
     numeroInscripcion: String(get('N° Inscripción') || get('Nº Inscripción') || get('N Inscripción') || get('N° Inscripcion') || get('Nº Inscripcion')),
+    correlativo: Number(String(get('N° Correlativo') || get('Nº Correlativo') || get('Correlativo') || '0').replace(/[^0-9.-]/g, '')) || 0,
+    codigoCurso: String(get('Código del Curso') || get('Codigo del Curso') || get('Código Curso') || get('Codigo Curso') || ''),
     codigoSence: String(get('Código Sence') || get('Codigo Sence') || ''),
     ordenCompra: String(get('Orden de Compra') || ''),
     idSence: String(get('ID Sence') || get('Id Sence') || ''),
     idMoodle: String(get('ID Moodle') || get('Id Moodle') || ''),
-    cliente: String(get('Cliente') || ''),
+    empresa: String(get('Empresa') || get('Cliente') || 'Mutual'),
     nombreCurso: String(get('Nombre Curso') || ''),
-    modalidad: String(get('Modalidad') || ''),
+    modalidad: toModalidad(get('Modalidad')),
     inicio: toDateISO(get('Inicio')),
     termino: toDateISO(get('Termino') || get('Término')),
     ejecutivo: String(get('Ejecutivo') || ''),
@@ -69,21 +79,83 @@ export class InscripcionesController {
   // POST /api/inscripciones
   async create(req: Request, res: Response) {
     const col = await getInscripcionesCollection();
-    const payload = req.body as Inscripcion;
+    const counters = await getCountersCollection();
+    const body = req.body as Partial<Inscripcion>;
+
+    // Validaciones mínimas de campos obligatorios
+    const required: (keyof Inscripcion)[] = ['idMoodle','correlativo','codigoCurso','inicio','ejecutivo','numAlumnosInscritos','modalidad','statusAlumnos'];
+    for (const k of required) {
+      const v = (body as any)[k];
+      if (v === undefined || v === null || v === '' || (k==='numAlumnosInscritos' && typeof v !== 'number')) {
+        res.status(400).json({ success: false, error: { message: `Campo obligatorio faltante: ${String(k)}` } });
+        return;
+      }
+    }
+
+    // Generar secuencia para numeroInscripcion (string), iniciando en 100000
+    // Paso 1: garantizar documento del contador
+    await counters.updateOne(
+      { _id: 'inscripciones' },
+      { $setOnInsert: { seq: 99999 } },
+      { upsert: true }
+    );
+    // Paso 2: incrementar y devolver el valor actualizado
+    const seqDoc = await counters.findOneAndUpdate(
+      { _id: 'inscripciones' },
+      { $inc: { seq: 1 } },
+      { returnDocument: 'after' } as any
+    );
+    const nextNum = (seqDoc && (seqDoc as any).value && (seqDoc as any).value.seq) ? (seqDoc as any).value.seq : 100000;
+
+    const normalizeModalidad = (m?: string) => {
+      const t = String(m || '').toLowerCase();
+      return t.includes('sincr') ? 'sincrónico' : 'e-learning';
+    };
+
+    const payload: Inscripcion = {
+      numeroInscripcion: String(nextNum),
+      correlativo: Number(body.correlativo),
+      codigoCurso: String(body.codigoCurso),
+      empresa: 'Mutual',
+      codigoSence: body.codigoSence || undefined,
+      ordenCompra: body.ordenCompra || undefined,
+      idSence: body.idSence || undefined,
+      idMoodle: String(body.idMoodle),
+      nombreCurso: body.nombreCurso || undefined,
+      modalidad: normalizeModalidad(String(body.modalidad)),
+      inicio: String(body.inicio),
+      termino: body.termino || undefined,
+      ejecutivo: String(body.ejecutivo),
+      numAlumnosInscritos: Number(body.numAlumnosInscritos),
+      valorInicial: body.valorInicial === undefined ? undefined : Number(body.valorInicial),
+      valorFinal: body.valorFinal === undefined ? undefined : Number(body.valorFinal),
+      statusAlumnos: String(body.statusAlumnos),
+      comentarios: body.comentarios || undefined,
+    };
+
     const result = await col.insertOne(payload);
     const created = await col.findOne({ _id: result.insertedId } as any);
     res.status(201).json({ success: true, data: created });
   }
 
+  
+
   // PUT /api/inscripciones/:id
   async update(req: Request, res: Response) {
     const col = await getInscripcionesCollection();
     const { id } = req.params;
-    const payload = req.body as Partial<Inscripcion>;
-    await col.updateOne({ _id: new ObjectId(id) } as any, { $set: payload });
+    const incoming = req.body as Partial<Inscripcion>;
+    const { numeroInscripcion, empresa, ...rest } = incoming;
+    if (rest.modalidad) {
+      const t = String(rest.modalidad).toLowerCase();
+      rest.modalidad = t.includes('sincron') ? 'sincrónico' : 'e-learning';
+    }
+    await col.updateOne({ _id: new ObjectId(id) } as any, { $set: rest });
     const updated = await col.findOne({ _id: new ObjectId(id) } as any);
     res.json({ success: true, data: updated });
   }
+
+  
 
   // DELETE /api/inscripciones/:id
   async remove(req: Request, res: Response) {

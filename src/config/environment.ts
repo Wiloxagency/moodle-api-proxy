@@ -20,6 +20,7 @@ export const config = {
     uri: process.env.MONGODB_URI || '',
     dbName: process.env.MONGODB_DB_NAME || 'moodle_dashboard',
     inscripcionesCollection: process.env.MONGODB_INSCRIPCIONES_COLLECTION || 'inscripciones',
+    countersCollection: process.env.MONGODB_COUNTERS_COLLECTION || 'counters',
     participantesCollection: process.env.MONGODB_PARTICIPANTES_COLLECTION || 'participantes',
     senceCollection: process.env.MONGODB_SENCE_COLLECTION || 'sence',
     empresasCollection: process.env.MONGODB_EMPRESAS_COLLECTION || 'empresas',
