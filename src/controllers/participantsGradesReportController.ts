@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getInscripcionesCollection, getParticipantesCollection } from '../db/mongo';
+import { getInscripcionesCollection, getParticipantesCollection, getGradesReportsCollection } from '../db/mongo';
 import { StudentFinalGradeController } from './studentFinalGradeController';
 
 export class ParticipantsGradesReportController {
@@ -11,8 +11,18 @@ export class ParticipantsGradesReportController {
   // GET /api/participantes/:numeroInscripcion/grades
   async getReport(req: Request, res: Response) {
     const { numeroInscripcion } = req.params as { numeroInscripcion?: string };
+    const { reload } = req.query as { reload?: string };
     if (!numeroInscripcion) {
       return res.status(400).json({ success: false, error: { message: 'numeroInscripcion is required' } });
+    }
+
+    const cacheCol = await getGradesReportsCollection();
+    // If not reloading, return cached version if present
+    if (!reload) {
+      const cached = await cacheCol.findOne({ numeroInscripcion } as any);
+      if (cached) {
+        return res.json({ success: true, data: cached.data, updatedAt: cached.updatedAt });
+      }
     }
 
     const insCol = await getInscripcionesCollection();
@@ -60,6 +70,13 @@ export class ParticipantsGradesReportController {
       }
     }
 
-    return res.json({ success: true, data: { passed, failed } });
+    const payload = { passed, failed };
+    const updatedAt = new Date();
+    await cacheCol.updateOne(
+      { numeroInscripcion } as any,
+      { $set: { numeroInscripcion, data: payload, updatedAt } },
+      { upsert: true }
+    );
+    return res.json({ success: true, data: payload, updatedAt });
   }
 }

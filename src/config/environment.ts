@@ -25,7 +25,8 @@ export const config = {
     senceCollection: process.env.MONGODB_SENCE_COLLECTION || 'sence',
     empresasCollection: process.env.MONGODB_EMPRESAS_COLLECTION || 'empresas',
     ejecutivosCollection: process.env.MONGODB_EJECUTIVOS_COLLECTION || 'ejecutivos',
-    modalidadesCollection: process.env.MONGODB_MODALIDADES_COLLECTION || 'modalidades'
+    modalidadesCollection: process.env.MONGODB_MODALIDADES_COLLECTION || 'modalidades',
+    gradesReportsCollection: process.env.MONGODB_GRADES_REPORTS_COLLECTION || 'grades_reports'
   },
   
   // CORS configuration

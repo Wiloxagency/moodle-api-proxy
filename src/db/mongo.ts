@@ -5,6 +5,7 @@ import { Sence } from '../types/sence';
 import { Empresa } from '../types/empresa';
 import { Ejecutivo } from '../types/ejecutivo';
 import { Modalidad } from '../types/modalidad';
+import { GradesReportDoc } from '../types/gradesReport';
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
@@ -73,4 +74,11 @@ export async function getCountersCollection(): Promise<import('mongodb').Collect
   // @ts-ignore - property added in config
   const name = (config as any).mongo.countersCollection || 'counters';
   return database.collection(name);
+}
+
+export async function getGradesReportsCollection(): Promise<import('mongodb').Collection<GradesReportDoc>> {
+  const database = await getDb();
+  // @ts-ignore
+  const name = (config as any).mongo.gradesReportsCollection || 'grades_reports';
+  return database.collection<GradesReportDoc>(name);
 }
