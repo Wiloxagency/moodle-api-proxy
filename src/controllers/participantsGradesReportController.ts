@@ -31,7 +31,14 @@ export class ParticipantsGradesReportController {
 
     const partCol = await getParticipantesCollection();
     const participantes = await partCol.find({ numeroInscripcion }).toArray();
-    const items = participantes.map(p => ({ IdCurso: courseId, RutAlumno: p.rut || '', correlative: p.rut || '' }));
+    // Include participant names so the frontend can display Nombres/Apellidos in the report
+    const items = participantes.map(p => ({
+      IdCurso: courseId,
+      RutAlumno: (p as any).rut || '',
+      correlative: (p as any).rut || '',
+      Nombres: (p as any).nombres || '',
+      Apellidos: (p as any).apellidos || ''
+    }));
 
     const passed: any[] = [];
     const failed: any[] = [];
@@ -43,7 +50,7 @@ export class ParticipantsGradesReportController {
         if (progress) {
           // @ts-ignore - access private via bracket for reuse
           if (!(this.finalCtrl as any).shouldIgnoreProgress(progress)) {
-            passed.push(progress);
+            passed.push({ ...progress, Nombres: (it as any).Nombres || '', Apellidos: (it as any).Apellidos || '' });
           }
         } else {
           failed.push(it);
