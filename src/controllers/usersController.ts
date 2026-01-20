@@ -11,9 +11,27 @@ function sanitizeUser(user: any): Omit<User, 'password'> & { _id: string } {
   };
 }
 
+async function ensureInitialSuperAdmin(): Promise<void> {
+  const col = await getUsersCollection();
+  const superAdminsCount = await col.countDocuments({ role: 'superAdmin' });
+
+  if (superAdminsCount === 0) {
+    const now = new Date();
+    await col.insertOne({
+      username: 'superadmin',
+      usernameLower: 'superadmin',
+      role: 'superAdmin',
+      password: '123456',
+      createdAt: now,
+      updatedAt: now,
+    } as any);
+  }
+}
+
 export class UsersController {
   // GET /api/users
   async list(req: Request, res: Response) {
+    await ensureInitialSuperAdmin();
     const col = await getUsersCollection();
     const items = await col.find({}).toArray();
     const sanitized = items.map(sanitizeUser);
@@ -132,6 +150,38 @@ export class UsersController {
 
     const updated = await col.findOne({ _id });
     res.json({ success: true, data: updated ? sanitizeUser(updated) : null });
+  }
+
+  // POST /api/users/login
+  async login(req: Request, res: Response) {
+    const { username, password } = req.body as { username?: string; password?: string };
+
+    // Asegurar que exista al menos un superadmin por defecto
+    await ensureInitialSuperAdmin();
+
+    if (!username || !password) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'username y password son obligatorios' },
+      });
+      return;
+    }
+
+    const trimmedUsername = username.trim();
+    const normalized = trimmedUsername.toLowerCase();
+    const col = await getUsersCollection();
+
+    const user = await col.findOne({ usernameLower: normalized } as any);
+
+    if (!user || user.password !== password) {
+      res.status(401).json({
+        success: false,
+        error: { message: 'Credenciales inválidas' },
+      });
+      return;
+    }
+
+    res.json({ success: true, data: sanitizeUser(user) });
   }
 
   // DELETE /api/users/:id
