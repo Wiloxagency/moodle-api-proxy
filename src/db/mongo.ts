@@ -6,6 +6,7 @@ import { Empresa } from '../types/empresa';
 import { Ejecutivo } from '../types/ejecutivo';
 import { Modalidad } from '../types/modalidad';
 import { GradesReportDoc } from '../types/gradesReport';
+import { User } from '../types/user';
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
@@ -58,6 +59,14 @@ export async function getEjecutivosCollection(): Promise<Collection<Ejecutivo>> 
 export async function getModalidadesCollection(): Promise<Collection<Modalidad>> {
   const database = await getDb();
   return database.collection<Modalidad>(config.mongo.modalidadesCollection);
+}
+
+// Users collection
+export async function getUsersCollection(): Promise<Collection<User>> {
+  const database = await getDb();
+  // @ts-ignore - property added in config
+  const name = (config as any).mongo.usersCollection || 'users';
+  return database.collection<User>(name);
 }
 
 export async function closeMongo(): Promise<void> {

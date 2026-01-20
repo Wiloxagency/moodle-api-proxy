@@ -11,6 +11,7 @@ import senceRouter from './sence';
 import empresasRouter from './empresas';
 import ejecutivosRouter from './ejecutivos';
 import modalidadesRouter from './modalidades';
+import usersRouter from './users';
 
 const router = Router();
 const coursesController = new CoursesController();
@@ -44,6 +45,8 @@ router.use('/empresas', empresasRouter);
 router.use('/ejecutivos', ejecutivosRouter);
 // Modalidades configuration endpoints
 router.use('/modalidades', modalidadesRouter);
+// Users endpoints
+router.use('/users', usersRouter);
 
 // Category endpoints
 router.get('/categorias', asyncHandler(coursesController.getCategories));
