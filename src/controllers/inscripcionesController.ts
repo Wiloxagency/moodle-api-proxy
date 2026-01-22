@@ -92,20 +92,17 @@ export class InscripcionesController {
       }
     }
 
-    // Generar secuencia para numeroInscripcion (string), iniciando en 100000
-    // Paso 1: garantizar documento del contador
-    await counters.updateOne(
-      { _id: 'inscripciones' },
-      { $setOnInsert: { seq: 99999 } },
-      { upsert: true }
-    );
-    // Paso 2: incrementar y devolver el valor actualizado
+    // Generar secuencia para numeroInscripcion (string), iniciando en 100000 (atómico)
+    // Usamos actualización con pipeline para evitar conflicto entre $setOnInsert y $inc en el mismo campo.
+    // Lógica: seq = (ifNull(seq, 99999)) + 1
     const seqDoc = await counters.findOneAndUpdate(
       { _id: 'inscripciones' },
-      { $inc: { seq: 1 } },
-      { returnDocument: 'after' } as any
+      [
+        { $set: { seq: { $add: [ { $ifNull: ['$seq', 99999] }, 1 ] } } }
+      ] as any,
+      { upsert: true, returnDocument: 'after' } as any
     );
-    const nextNum = (seqDoc && (seqDoc as any).value && (seqDoc as any).value.seq) ? (seqDoc as any).value.seq : 100000;
+    const nextNum = (seqDoc as any)?.seq ?? 100000;
 
     const normalizeModalidad = (m?: string) => {
       const t = String(m || '').toLowerCase();
@@ -144,8 +141,8 @@ export class InscripcionesController {
   async update(req: Request, res: Response) {
     const col = await getInscripcionesCollection();
     const { id } = req.params;
-    const incoming = req.body as Partial<Inscripcion>;
-    const { numeroInscripcion, empresa, ...rest } = incoming;
+    const incoming = req.body as any;
+    const { _id, numeroInscripcion, empresa, ...rest } = incoming;
     if (rest.modalidad) {
       const t = String(rest.modalidad).toLowerCase();
       rest.modalidad = t.includes('sincron') ? 'sincrónico' : 'e-learning';
