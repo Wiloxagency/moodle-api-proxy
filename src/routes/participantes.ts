@@ -12,5 +12,6 @@ router.put('/:id', asyncHandler(ctrl.update));
 router.delete('/:id', asyncHandler(ctrl.delete));
 router.post('/import', asyncHandler(ctrl.importFromExcel));
 router.post('/import/moodle', asyncHandler(ctrl.importFromMoodle));
+router.post('/import/bulk', asyncHandler(ctrl.importBulk));
 
 export default router;

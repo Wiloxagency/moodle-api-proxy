@@ -88,7 +88,12 @@ export class ParticipantesController {
       return;
     }
     const col = await getParticipantesCollection();
-    const result = await col.insertOne(payload);
+    const normalizeRutKey = (rut: string) => rut.toString().trim().replace(/[\.\s]/g, '').toLowerCase();
+    const doc: any = {
+      ...payload,
+      rutKey: normalizeRutKey(payload.rut)
+    };
+    const result = await col.insertOne(doc);
     const created = await col.findOne({ _id: result.insertedId });
     res.status(201).json({ success: true, data: created });
   }
@@ -98,7 +103,12 @@ export class ParticipantesController {
     const { id } = req.params as { id: string };
     const payload = req.body as Partial<Participante>;
     const col = await getParticipantesCollection();
-    await col.updateOne({ _id: new ObjectId(id) }, { $set: payload });
+    const toSet: any = { ...payload };
+    if (payload.rut) {
+      const normalizeRutKey = (rut: string) => rut.toString().trim().replace(/[\.\s]/g, '').toLowerCase();
+      toSet.rutKey = normalizeRutKey(payload.rut);
+    }
+    await col.updateOne({ _id: new ObjectId(id) }, { $set: toSet });
     const updated = await col.findOne({ _id: new ObjectId(id) });
     res.json({ success: true, data: updated });
   }
@@ -127,11 +137,24 @@ export class ParticipantesController {
 
     const col = await getParticipantesCollection();
 
-    // Upsert by (numeroInscripcion, rut) combination
+    // Ensure unique index on (numeroInscripcion, rutKey)
+    await col.createIndex({ numeroInscripcion: 1, rutKey: 1 }, { unique: true, name: 'uniq_numeroInscripcion_rutKey' }).catch(() => {});
+    const normalizeRutKey = (rut: string) => rut.toString().trim().replace(/[\.\s]/g, '').toLowerCase();
+    // Upsert by (numeroInscripcion, rutKey)
     for (const r of mapped) {
+      const rut = (r.rut || '').toString().trim();
+      const mail = (r.mail || '').toString().trim();
+      const rutKey = normalizeRutKey(rut);
+      const doc: any = {
+        ...r,
+        rut,
+        rutKey,
+        mail: mail || `sincorreo_${rut.toLowerCase()}@edutecno.com`,
+        telefono: (r as any).telefono ? String((r as any).telefono) : null,
+      };
       await col.updateOne(
-        { numeroInscripcion: r.numeroInscripcion, rut: r.rut },
-        { $set: r },
+        { numeroInscripcion: r.numeroInscripcion, rutKey },
+        { $set: doc },
         { upsert: true }
       );
     }
@@ -238,5 +261,75 @@ export class ParticipantesController {
     }
     const total = await col.countDocuments({ numeroInscripcion });
     return res.json({ success: true, data: { inserted, updated, skipped, total } });
+  }
+
+
+  // POST /api/participantes/import/bulk
+  // Upsert a client-provided list of participantes (e.g., parsed from Excel in frontend)
+  // Body: { numeroInscripcion: string, participantes: Array<Partial<Participante>> }
+  async importBulk(req: Request, res: Response) {
+    const { numeroInscripcion, participantes } = req.body as {
+      numeroInscripcion?: string;
+      participantes?: Array<Partial<Participante>>;
+    };
+
+    if (!numeroInscripcion || !participantes || !Array.isArray(participantes)) {
+      return res.status(400).json({ success: false, error: { message: 'numeroInscripcion and participantes[] are required' } });
+    }
+
+    const col = await getParticipantesCollection();
+
+    // Ensure unique index on (numeroInscripcion, rutKey) for deduplication inside an inscripción
+    await col.createIndex({ numeroInscripcion: 1, rutKey: 1 }, { unique: true, name: 'uniq_numeroInscripcion_rutKey' }).catch(() => {/* ignore if exists */});
+
+    const norm = (v?: string) => (v ?? '').toString().trim();
+    const normalizeRutKey = (rut: string) => rut.toString().trim().replace(/[\.\s]/g, '').toLowerCase();
+    const emailFor = (rut: string, mail?: string) => {
+      const m = norm(mail);
+      if (m) return m;
+      const rutEmail = rut.replace(/\s/g, '').toLowerCase();
+      return `sincorreo_${rutEmail}@edutecno.com`;
+    };
+
+    const ops = [] as import('mongodb').AnyBulkWriteOperation<any>[];
+
+    for (const p of participantes) {
+      const rutRaw = norm(p.rut || '');
+      if (!rutRaw) continue; // skip rows without rut
+      const rutKey = normalizeRutKey(rutRaw);
+
+      const doc: any = {
+        numeroInscripcion,
+        rut: rutRaw,
+        rutKey,
+        nombres: norm(p.nombres || ''),
+        apellidos: norm(p.apellidos || ''),
+        mail: emailFor(rutRaw, p.mail),
+        telefono: norm(p.telefono || '') || null,
+        franquiciaPorcentaje: p.franquiciaPorcentaje ?? undefined,
+        costoOtic: p.costoOtic ?? undefined,
+        costoEmpresa: p.costoEmpresa ?? undefined,
+        estadoInscripcion: norm(p.estadoInscripcion || '' ) || undefined,
+        observacion: norm(p.observacion || '') || undefined,
+      };
+
+      ops.push({
+        updateOne: {
+          filter: { numeroInscripcion, rutKey },
+          update: { $set: doc },
+          upsert: true,
+        }
+      });
+    }
+
+    if (ops.length === 0) {
+      return res.json({ success: true, data: { inserted: 0, updated: 0, total: 0 } });
+    }
+
+    const result = await col.bulkWrite(ops, { ordered: false });
+    const inserted = (result.upsertedCount) || 0;
+    const updated = (result.modifiedCount) || 0;
+    const total = await col.countDocuments({ numeroInscripcion });
+    return res.json({ success: true, data: { inserted, updated, total } });
   }
 }

@@ -74,6 +74,7 @@ router.get('/', (req, res) => {
       participantes: 'GET /api/participantes?numeroInscripcion=INS-0001',
       importParticipantes: 'POST /api/participantes/import',
       importParticipantesMoodle: 'POST /api/participantes/import/moodle',
+      importParticipantesBulk: 'POST /api/participantes/import/bulk',
       sence: 'CRUD /api/sence',
       empresas: 'CRUD /api/empresas',
       ejecutivos: 'CRUD /api/ejecutivos',
