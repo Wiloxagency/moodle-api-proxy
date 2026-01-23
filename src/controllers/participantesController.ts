@@ -23,7 +23,7 @@ function toPercent(v: any): number | undefined {
 
 function mapExcelRow(row: Record<string, any>): Participante | null {
   const get = (k: string) => row[k] ?? row[k.trim()];
-  const numeroInscripcion = String(get('N° Inscripción') || get('Nº Inscripción') || get('N Inscripción') || get('N° Inscripcion') || get('Nº Inscripcion') || get('Inscripción') || '');
+  const numeroInscripcion = toNumber(get('N° Inscripción') || get('Nº Inscripción') || get('N Inscripción') || get('N° Inscripcion') || get('Nº Inscripcion') || get('Inscripción') || '');
   if (!numeroInscripcion) return null;
   const nombres = String(get('Nombres') || '');
   const apellidos = String(get('Apellidos') || '');
@@ -57,7 +57,7 @@ export class ParticipantesController {
     const { numeroInscripcion } = req.query as { numeroInscripcion?: string };
     const col = await getParticipantesCollection();
     const filter: any = {};
-    if (numeroInscripcion) filter.numeroInscripcion = String(numeroInscripcion);
+    if (numeroInscripcion) filter.numeroInscripcion = Number(numeroInscripcion);
     const items = await col.find(filter).toArray();
     res.json({ success: true, data: items });
   }
@@ -69,7 +69,7 @@ export class ParticipantesController {
     const match: any = {};
     if (inscripciones) {
       const list = inscripciones.split(',').map(s => s.trim()).filter(Boolean);
-      match.numeroInscripcion = { $in: list };
+      match.numeroInscripcion = { $in: list.map(Number) };
     }
     const agg = await col.aggregate([
       { $match: match },
@@ -91,6 +91,7 @@ export class ParticipantesController {
     const normalizeRutKey = (rut: string) => rut.toString().trim().replace(/[\.\s]/g, '').toLowerCase();
     const doc: any = {
       ...payload,
+      numeroInscripcion: Number(payload.numeroInscripcion),
       rutKey: normalizeRutKey(payload.rut)
     };
     const result = await col.insertOne(doc);

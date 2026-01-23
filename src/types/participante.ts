@@ -1,5 +1,5 @@
 export interface Participante {
-  numeroInscripcion: string; // vinculado a Inscripcion
+  numeroInscripcion: number; // vinculado a Inscripcion
   nombres: string;
   apellidos: string;
   rut: string;

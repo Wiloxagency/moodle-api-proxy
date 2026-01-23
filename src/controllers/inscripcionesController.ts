@@ -35,7 +35,7 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
 
   // Map explicit Spanish headers to internal fields
   return {
-    numeroInscripcion: String(get('N° Inscripción') || get('Nº Inscripción') || get('N Inscripción') || get('N° Inscripcion') || get('Nº Inscripcion')),
+    numeroInscripcion: toNumber(get('N° Inscripción') || get('Nº Inscripción') || get('N Inscripción') || get('N° Inscripcion') || get('Nº Inscripcion')),
     correlativo: Number(String(get('N° Correlativo') || get('Nº Correlativo') || get('Correlativo') || '0').replace(/[^0-9.-]/g, '')) || 0,
     codigoCurso: String(get('Código del Curso') || get('Codigo del Curso') || get('Código Curso') || get('Codigo Curso') || ''),
     codigoSence: String(get('Código Sence') || get('Codigo Sence') || ''),
@@ -110,7 +110,7 @@ export class InscripcionesController {
     };
 
     const payload: Inscripcion = {
-      numeroInscripcion: String(nextNum),
+      numeroInscripcion: nextNum,
       correlativo: Number(body.correlativo),
       codigoCurso: String(body.codigoCurso),
       empresa: 'Mutual',
