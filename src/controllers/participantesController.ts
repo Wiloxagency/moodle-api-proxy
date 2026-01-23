@@ -28,7 +28,14 @@ function mapExcelRow(row: Record<string, any>): Participante | null {
   const nombres = String(get('Nombres') || '');
   const apellidos = String(get('Apellidos') || '');
   const rut = String(get('Rut') || get('RUT') || '');
-  const mail = String(get('Mail') || get('Email') || get('Correo') || '');
+  const mail = String(
+    get('Mail') ||
+    get('Email') ||
+    get('Correo') ||
+    get('Correo electrónico') ||
+    get('Correo Electronico') ||
+    ''
+  );
   const telefono = String(get('TeléfFono') || get('Teléfono') || get('Telefono') || get('Tel') || '');
   const franquiciaPorcentaje = toPercent(get('% Franquicia'));
   const costoOtic = toNumber(get('Costo OTIC'));
@@ -150,7 +157,7 @@ export class ParticipantesController {
         ...r,
         rut,
         rutKey,
-        mail: mail || `sincorreo_${rut.toLowerCase()}@edutecno.com`,
+        mail, // si viene vacío desde el Excel, se guarda vacío
         telefono: (r as any).telefono ? String((r as any).telefono) : null,
       };
       await col.updateOne(
@@ -240,14 +247,14 @@ export class ParticipantesController {
       const t = (u.phone1 || u.phone || u.phone2 || '').toString().trim();
       return t || undefined;
     };
-    const mapped = users.map(u => ({
-      numeroInscripcion,
+    const mapped: Participante[] = users.map(u => ({
+      numeroInscripcion: Number(numeroInscripcion),
       nombres: (u.firstname ?? '').toString(),
       apellidos: (u.lastname ?? '').toString(),
       rut: toRut(u),
       mail: (u.email ?? '').toString(),
       telefono: toTelefono(u),
-    })) as Participante[];
+    }));
 
     const col = await getParticipantesCollection();
     let inserted = 0, updated = 0, skipped = 0;
@@ -280,16 +287,17 @@ export class ParticipantesController {
 
     const col = await getParticipantesCollection();
 
+    // Normalizar numeroInscripcion a número para ser consistente con el resto del sistema
+    const numeroInscripcionNum = Number(numeroInscripcion);
+
     // Ensure unique index on (numeroInscripcion, rutKey) for deduplication inside an inscripción
     await col.createIndex({ numeroInscripcion: 1, rutKey: 1 }, { unique: true, name: 'uniq_numeroInscripcion_rutKey' }).catch(() => {/* ignore if exists */});
 
     const norm = (v?: string) => (v ?? '').toString().trim();
     const normalizeRutKey = (rut: string) => rut.toString().trim().replace(/[\.\s]/g, '').toLowerCase();
-    const emailFor = (rut: string, mail?: string) => {
-      const m = norm(mail);
-      if (m) return m;
-      const rutEmail = rut.replace(/\s/g, '').toLowerCase();
-      return `sincorreo_${rutEmail}@edutecno.com`;
+    const emailFor = (_rut: string, mail?: string) => {
+      // No inventar correo: devolver tal cual (normalizado) o cadena vacía
+      return norm(mail);
     };
 
     const ops = [] as import('mongodb').AnyBulkWriteOperation<any>[];
@@ -300,7 +308,7 @@ export class ParticipantesController {
       const rutKey = normalizeRutKey(rutRaw);
 
       const doc: any = {
-        numeroInscripcion,
+        numeroInscripcion: numeroInscripcionNum,
         rut: rutRaw,
         rutKey,
         nombres: norm(p.nombres || ''),
@@ -316,7 +324,7 @@ export class ParticipantesController {
 
       ops.push({
         updateOne: {
-          filter: { numeroInscripcion, rutKey },
+          filter: { numeroInscripcion: numeroInscripcionNum, rutKey },
           update: { $set: doc },
           upsert: true,
         }
@@ -330,7 +338,7 @@ export class ParticipantesController {
     const result = await col.bulkWrite(ops, { ordered: false });
     const inserted = (result.upsertedCount) || 0;
     const updated = (result.modifiedCount) || 0;
-    const total = await col.countDocuments({ numeroInscripcion });
+    const total = await col.countDocuments({ numeroInscripcion: numeroInscripcionNum });
     return res.json({ success: true, data: { inserted, updated, total } });
   }
 }

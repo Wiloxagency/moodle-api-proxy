@@ -86,7 +86,7 @@ export class StudentActivitiesController {
           return;
         }
         // Retry Moodle lookup with fuller username
-        const altUsername = participant.rut || participant.numeroInscripcion;
+        const altUsername = String(participant.rut || participant.numeroInscripcion);
         userLookup = await this.moodleService.getUserByUsername(altUsername);
         users = this.unwrapUsers(userLookup.data);
         if (!userLookup.success || users.length === 0) {

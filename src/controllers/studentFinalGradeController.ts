@@ -145,7 +145,7 @@ export class StudentFinalGradeController {
     if (!userLookup.success || users.length === 0) {
       const participant = await this.findParticipantByPartialUsername(username);
       if (participant) {
-        const altUsername = participant.rut || participant.numeroInscripcion;
+        const altUsername = String(participant.rut || participant.numeroInscripcion);
         userLookup = await this.moodleService.getUserByUsername(altUsername);
         users = this.unwrapUsers(userLookup.data);
         if (!userLookup.success || users.length === 0) {

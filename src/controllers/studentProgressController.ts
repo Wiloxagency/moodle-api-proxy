@@ -76,13 +76,13 @@ export class StudentProgressController {
         }
 
         // If found in local DB, try again with the full username
-        const fullUsername = participant.rut || participant.numeroInscripcion;
+        const fullUsername = String(participant.rut || participant.numeroInscripcion);
         const retryResult = await this.moodleService.getUserProgressInCourse(fullUsername, courseIdNum);
         
         if (!retryResult.success) {
           // Return -1 values when progress data is unavailable
           const progressData: StudentProgress = {
-            username: participant.rut || participant.numeroInscripcion,
+            username: String(participant.rut || participant.numeroInscripcion),
             completeName: this.getCompleteName(null, participant),
             courseId: courseIdNum,
             progressPercentage: -1,
