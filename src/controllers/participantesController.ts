@@ -38,6 +38,7 @@ function mapExcelRow(row: Record<string, any>): Participante | null {
   );
   const telefono = String(get('TeléfFono') || get('Teléfono') || get('Telefono') || get('Tel') || '');
   const franquiciaPorcentaje = toPercent(get('% Franquicia'));
+  const valorCobrado = toNumber(get('Valor Cobrado') || get('Valor cobrado') || get('ValorCobrado'));
   const costoOtic = toNumber(get('Costo OTIC'));
   const costoEmpresa = toNumber(get('Costo Empresa'));
   const estadoInscripcion = String(get('Estado inscripción') || get('Estado Inscripción') || get('Estado') || '') || undefined;
@@ -51,6 +52,7 @@ function mapExcelRow(row: Record<string, any>): Participante | null {
     mail,
     telefono: telefono || undefined,
     franquiciaPorcentaje,
+    valorCobrado,
     costoOtic,
     costoEmpresa,
     estadoInscripcion,
@@ -316,6 +318,7 @@ export class ParticipantesController {
         mail: emailFor(rutRaw, p.mail),
         telefono: norm(p.telefono || '') || null,
         franquiciaPorcentaje: p.franquiciaPorcentaje ?? undefined,
+        valorCobrado: p.valorCobrado ?? undefined,
         costoOtic: p.costoOtic ?? undefined,
         costoEmpresa: p.costoEmpresa ?? undefined,
         estadoInscripcion: norm(p.estadoInscripcion || '' ) || undefined,

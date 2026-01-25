@@ -1,5 +1,6 @@
 export interface Modalidad {
   code: number;
+  nombre?: string;
   sincronico?: boolean;
   asincronico?: boolean;
   sincronico_online?: boolean;
