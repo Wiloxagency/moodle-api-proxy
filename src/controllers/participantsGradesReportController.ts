@@ -58,19 +58,37 @@ export class ParticipantsGradesReportController {
     const passed: any[] = [];
     const failed: any[] = [];
 
+    const now = new Date();
+    const termino = (ins as any).termino ? new Date((ins as any).termino) : null;
+    const courseEnded = termino != null && termino.getTime() <= now.getTime();
+
     for (const it of items) {
       try {
         // @ts-ignore - access private via bracket for reuse
         const progress = await (this.finalCtrl as any).processSingleGrade(it.RutAlumno, it.IdCurso, it.correlative);
-        if (progress) {
-          // @ts-ignore - access private via bracket for reuse
-          if (!(this.finalCtrl as any).shouldIgnoreProgress(progress)) {
-            passed.push({ ...progress, Nombres: (it as any).Nombres || '', Apellidos: (it as any).Apellidos || '' });
+        if (progress && !(this.finalCtrl as any).shouldIgnoreProgress(progress)) {
+          // Regla: antes de la fecha de término no mostrar "Reprobado" (EstadoCurso '2')
+          const estado = (progress as any).EstadoCurso;
+          const adjusted = { ...progress } as any;
+          if (estado === '2' && !courseEnded) {
+            adjusted.EstadoCurso = '';
           }
+          passed.push({ ...adjusted, Nombres: (it as any).Nombres || '', Apellidos: (it as any).Apellidos || '' });
         } else {
-          failed.push(it);
+          // Sin notas/avance: incluir igualmente
+          passed.push({
+            IdCurso: it.IdCurso,
+            RutAlumno: it.RutAlumno,
+            Nombres: (it as any).Nombres || '',
+            Apellidos: (it as any).Apellidos || '',
+            PorcentajeAvance: '',
+            PorcentajeAsistenciaAlumno: '',
+            NotaFinal: '',
+            EstadoCurso: courseEnded ? '2' : ''
+          } as any);
         }
       } catch (e) {
+        // Error real al consultar Moodle: los contamos como fallidos (banner)
         failed.push(it);
       }
     }
