@@ -16,17 +16,22 @@ export class ParticipantsGradesReportController {
       return res.status(400).json({ success: false, error: { message: 'numeroInscripcion is required' } });
     }
 
+    const numeroInscripcionNum = Number(numeroInscripcion);
+    const byNumero = Number.isFinite(numeroInscripcionNum)
+      ? ({ $or: [ { numeroInscripcion: numeroInscripcionNum }, { numeroInscripcion } ] } as any)
+      : ({ numeroInscripcion } as any);
+
     const cacheCol = await getGradesReportsCollection();
     // If not reloading, return cached version if present
     if (!reload) {
-      const cached = await cacheCol.findOne({ numeroInscripcion } as any);
+      const cached = await cacheCol.findOne(byNumero);
       if (cached) {
         return res.json({ success: true, data: cached.data, updatedAt: cached.updatedAt });
       }
     }
 
     const insCol = await getInscripcionesCollection();
-    const ins = await insCol.findOne({ numeroInscripcion } as any);
+    const ins = await insCol.findOne(byNumero);
     if (!ins) {
       return res.status(404).json({ success: false, error: { message: 'Inscripción no encontrada' } });
     }
@@ -40,7 +45,7 @@ export class ParticipantsGradesReportController {
     }
 
     const partCol = await getParticipantesCollection();
-    const participantes = await partCol.find({ numeroInscripcion }).toArray();
+    const participantes = await partCol.find(byNumero).toArray();
     // Include participant names so the frontend can display Nombres/Apellidos in the report
     const items = participantes.map(p => ({
       IdCurso: courseId,
@@ -72,9 +77,10 @@ export class ParticipantsGradesReportController {
 
     const payload = { passed, failed };
     const updatedAt = new Date();
+    const numeroInscripcionNormalized = Number.isFinite(numeroInscripcionNum) ? numeroInscripcionNum : numeroInscripcion;
     await cacheCol.updateOne(
-      { numeroInscripcion } as any,
-      { $set: { numeroInscripcion, data: payload, updatedAt } },
+      { numeroInscripcion: numeroInscripcionNormalized } as any,
+      { $set: { numeroInscripcion: numeroInscripcionNormalized, data: payload, updatedAt } } as any,
       { upsert: true }
     );
     return res.json({ success: true, data: payload, updatedAt });
