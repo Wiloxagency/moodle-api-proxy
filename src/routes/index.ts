@@ -11,6 +11,7 @@ import senceRouter from './sence';
 import empresasRouter from './empresas';
 import ejecutivosRouter from './ejecutivos';
 import modalidadesRouter from './modalidades';
+import reportesRouter from './reportes';
 import usersRouter from './users';
 
 const router = Router();
@@ -45,6 +46,8 @@ router.use('/empresas', empresasRouter);
 router.use('/ejecutivos', ejecutivosRouter);
 // Modalidades configuration endpoints
 router.use('/modalidades', modalidadesRouter);
+// Reportes endpoints
+router.use('/reportes', reportesRouter);
 // Users endpoints
 router.use('/users', usersRouter);
 
@@ -79,6 +82,7 @@ router.get('/', (req, res) => {
       empresas: 'CRUD /api/empresas',
       ejecutivos: 'CRUD /api/ejecutivos',
       modalidades: 'CRUD /api/modalidades',
+      reportesAvances: 'GET /api/reportes/avances',
       categories: 'GET /api/categorias',
       rootCategories: 'GET /api/categorias/raiz',
       coursesByCategory: 'GET /api/cursos/categoria/:id',
