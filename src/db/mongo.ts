@@ -91,3 +91,10 @@ export async function getGradesReportsCollection(): Promise<import('mongodb').Co
   const name = (config as any).mongo.gradesReportsCollection || 'grades_reports';
   return database.collection<GradesReportDoc>(name);
 }
+
+export async function getDashboardCacheCollection(): Promise<import('mongodb').Collection<any>> {
+  const database = await getDb();
+  // @ts-ignore
+  const name = (config as any).mongo.dashboardCacheCollection || 'dashboard_cache';
+  return database.collection<any>(name);
+}

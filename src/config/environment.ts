@@ -27,6 +27,7 @@ export const config = {
     ejecutivosCollection: process.env.MONGODB_EJECUTIVOS_COLLECTION || 'ejecutivos',
     modalidadesCollection: process.env.MONGODB_MODALIDADES_COLLECTION || 'modalidades',
     gradesReportsCollection: process.env.MONGODB_GRADES_REPORTS_COLLECTION || 'grades_reports',
+    dashboardCacheCollection: process.env.MONGODB_DASHBOARD_CACHE_COLLECTION || 'dashboard_cache',
     usersCollection: process.env.MONGODB_USERS_COLLECTION || 'users'
   },
   

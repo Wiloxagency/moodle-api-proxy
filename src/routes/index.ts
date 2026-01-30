@@ -12,6 +12,7 @@ import empresasRouter from './empresas';
 import ejecutivosRouter from './ejecutivos';
 import modalidadesRouter from './modalidades';
 import reportesRouter from './reportes';
+import dashboardRouter from './dashboard';
 import usersRouter from './users';
 
 const router = Router();
@@ -48,6 +49,8 @@ router.use('/ejecutivos', ejecutivosRouter);
 router.use('/modalidades', modalidadesRouter);
 // Reportes endpoints
 router.use('/reportes', reportesRouter);
+// Dashboard cache endpoints
+router.use('/dashboard', dashboardRouter);
 // Users endpoints
 router.use('/users', usersRouter);
 
@@ -83,6 +86,7 @@ router.get('/', (req, res) => {
       ejecutivos: 'CRUD /api/ejecutivos',
       modalidades: 'CRUD /api/modalidades',
       reportesAvances: 'GET /api/reportes/avances',
+      dashboardCache: 'GET /api/dashboard/cache',
       categories: 'GET /api/categorias',
       rootCategories: 'GET /api/categorias/raiz',
       coursesByCategory: 'GET /api/cursos/categoria/:id',
