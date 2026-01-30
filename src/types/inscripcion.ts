@@ -14,6 +14,7 @@ export interface Inscripcion {
   ejecutivo: string;
   numAlumnosInscritos: number;
   valorInicial?: number;
+  responsable?: string;
   valorFinal?: number;
   statusAlumnos: string;
   comentarios?: string;
