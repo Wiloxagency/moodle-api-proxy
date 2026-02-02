@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { ObjectId } from 'mongodb';
-import { getUsersCollection } from '../db/mongo';
+import { getEmpresasCollection, getUsersCollection } from '../db/mongo';
 import { User, UserRole } from '../types/user';
 
 function sanitizeUser(user: any): Omit<User, 'password'> & { _id: string } {
@@ -8,7 +8,19 @@ function sanitizeUser(user: any): Omit<User, 'password'> & { _id: string } {
     _id: user._id?.toString(),
     username: user.username,
     role: user.role,
+    empresa: user.empresa,
   };
+}
+
+async function getDefaultEmpresaCode(): Promise<number> {
+  try {
+    const col = await getEmpresasCollection();
+    const first = await col.find({}).sort({ code: 1 }).limit(1).toArray();
+    const code = first[0]?.code;
+    return typeof code === 'number' && !Number.isNaN(code) ? code : 0;
+  } catch {
+    return 0;
+  }
 }
 
 async function ensureInitialSuperAdmin(): Promise<void> {
@@ -17,10 +29,12 @@ async function ensureInitialSuperAdmin(): Promise<void> {
 
   if (superAdminsCount === 0) {
     const now = new Date();
+    const empresa = await getDefaultEmpresaCode();
     await col.insertOne({
       username: 'superadmin',
       usernameLower: 'superadmin',
       role: 'superAdmin',
+      empresa,
       password: '123456',
       createdAt: now,
       updatedAt: now,
@@ -40,12 +54,22 @@ export class UsersController {
 
   // POST /api/users
   async create(req: Request, res: Response) {
-    const { username, role, password } = req.body as Partial<User>;
+    const { username, role, password, empresa } = req.body as Partial<User>;
 
     if (!username || !password) {
       res.status(400).json({
         success: false,
         error: { message: 'username y password son obligatorios' },
+      });
+      return;
+    }
+
+    const empresaRaw: any = (req.body as any).empresa;
+    const empresaNum = Number(empresaRaw);
+    if (empresaRaw === undefined || empresaRaw === null || empresaRaw === '' || !Number.isFinite(empresaNum)) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'empresa es obligatoria y debe ser numérica' },
       });
       return;
     }
@@ -68,6 +92,7 @@ export class UsersController {
       username: trimmedUsername,
       usernameLower: normalized,
       role: (role as UserRole) || 'user',
+      empresa: empresaNum,
       password,
       createdAt: now,
       updatedAt: now,
@@ -82,7 +107,7 @@ export class UsersController {
   // PUT /api/users/:id
   async update(req: Request, res: Response) {
     const { id } = req.params as { id: string };
-    const { username, role } = req.body as Partial<User>;
+    const { username, role, empresa } = req.body as Partial<User>;
 
     if (!ObjectId.isValid(id)) {
       res.status(400).json({ success: false, error: { message: 'ID inválido' } });
@@ -117,6 +142,19 @@ export class UsersController {
 
     if (role) {
       updates.role = role;
+    }
+
+    if (empresa !== undefined) {
+      const empresaRaw: any = (req.body as any).empresa;
+      const empresaNum = Number(empresaRaw);
+      if (empresaRaw === null || empresaRaw === '' || !Number.isFinite(empresaNum)) {
+        res.status(400).json({
+          success: false,
+          error: { message: 'empresa debe ser numérica' },
+        });
+        return;
+      }
+      updates.empresa = empresaNum;
     }
 
     await col.updateOne({ _id }, { $set: updates });

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getDashboardCacheCollection, getGradesReportsCollection, getInscripcionesCollection, getParticipantesCollection } from '../db/mongo';
+import { getDashboardCacheCollection, getEmpresasCollection, getGradesReportsCollection, getInscripcionesCollection, getParticipantesCollection } from '../db/mongo';
 
 interface Metrics {
   becados: number;
@@ -12,6 +12,7 @@ interface DashboardInscripcionCache {
   numeroInscripcion: number | string;
   idMoodle?: string;
   correlativo?: number;
+  empresa?: number;
   nombreCurso?: string;
   modalidad?: string;
   inicio?: string;
@@ -50,14 +51,42 @@ const classifyParticipant = (p: any): keyof Metrics => {
 };
 
 async function buildCache(): Promise<DashboardCacheDoc> {
-  const [insCol, partCol, gradesCol] = await Promise.all([
+  const [insCol, partCol, gradesCol, empCol] = await Promise.all([
     getInscripcionesCollection(),
     getParticipantesCollection(),
     getGradesReportsCollection(),
+    getEmpresasCollection(),
   ]);
 
-  const inscripciones = await insCol.find({}).toArray();
+  const [inscripciones, empresas] = await Promise.all([
+    insCol.find({}).toArray(),
+    empCol.find({}).toArray(),
+  ]);
   const updatedAt = new Date().toISOString();
+
+  const empresaByName = new Map<string, number>();
+  const empresaByCode = new Map<string, number>();
+  for (const e of empresas) {
+    if (e && typeof (e as any).code === 'number') {
+      empresaByCode.set(String((e as any).code), (e as any).code);
+    }
+    const nombre = String((e as any).nombre || '').trim().toLowerCase();
+    if (nombre) empresaByName.set(nombre, (e as any).code);
+  }
+
+  const normalizeEmpresa = (value: any): number | undefined => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const raw = String(value).trim();
+    if (!raw) return undefined;
+    const num = Number(raw);
+    if (Number.isFinite(num)) return num;
+    const mapped = empresaByName.get(raw.toLowerCase());
+    if (mapped !== undefined) return mapped;
+    const mappedByCode = empresaByCode.get(raw);
+    if (mappedByCode !== undefined) return mappedByCode;
+    return undefined;
+  };
 
   const numerosSet = new Set<any>();
   for (const ins of inscripciones) {
@@ -122,6 +151,7 @@ async function buildCache(): Promise<DashboardCacheDoc> {
       numeroInscripcion: (ins as any).numeroInscripcion ?? '',
       idMoodle: (ins as any).idMoodle,
       correlativo: (ins as any).correlativo,
+      empresa: normalizeEmpresa((ins as any).empresa),
       nombreCurso: (ins as any).nombreCurso,
       modalidad: (ins as any).modalidad,
       inicio: (ins as any).inicio,

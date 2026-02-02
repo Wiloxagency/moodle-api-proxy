@@ -42,7 +42,7 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
     ordenCompra: String(get('Orden de Compra') || ''),
     idSence: String(get('ID Sence') || get('Id Sence') || ''),
     idMoodle: String(get('ID Moodle') || get('Id Moodle') || ''),
-    empresa: String(get('Empresa') || get('Cliente') || 'Mutual'),
+    empresa: toNumber(get('Empresa') || get('Cliente') || ''),
     nombreCurso: String(get('Nombre Curso') || ''),
     modalidad: toModalidad(get('Modalidad')),
     inicio: toDateISO(get('Inicio')),
@@ -83,6 +83,13 @@ export class InscripcionesController {
     const counters = await getCountersCollection();
     const body = req.body as Partial<Inscripcion>;
 
+    const empresaRaw: any = (body as any).empresa;
+    const empresaNum = Number(empresaRaw);
+    if (empresaRaw === undefined || empresaRaw === null || empresaRaw === '' || !Number.isFinite(empresaNum)) {
+      res.status(400).json({ success: false, error: { message: 'Campo obligatorio faltante: empresa' } });
+      return;
+    }
+
     // Validaciones mínimas de campos obligatorios
     const required: (keyof Inscripcion)[] = ['idMoodle','correlativo','codigoCurso','inicio','ejecutivo','numAlumnosInscritos','modalidad','statusAlumnos'];
     for (const k of required) {
@@ -114,7 +121,7 @@ export class InscripcionesController {
       numeroInscripcion: nextNum,
       correlativo: Number(body.correlativo),
       codigoCurso: String(body.codigoCurso),
-      empresa: 'Mutual',
+      empresa: empresaNum,
       codigoSence: body.codigoSence || undefined,
       ordenCompra: body.ordenCompra || undefined,
       idSence: body.idSence || undefined,
@@ -144,7 +151,17 @@ export class InscripcionesController {
     const col = await getInscripcionesCollection();
     const { id } = req.params;
     const incoming = req.body as any;
-    const { _id, numeroInscripcion, empresa, ...rest } = incoming;
+    const { _id, numeroInscripcion, ...rest } = incoming;
+    if (rest.empresa !== undefined) {
+      const empresaRaw: any = rest.empresa;
+      const empresaNum = Number(empresaRaw);
+      if (empresaRaw === null || empresaRaw === '' || !Number.isFinite(empresaNum)) {
+        res.status(400).json({ success: false, error: { message: 'empresa debe ser numérica' } });
+        return;
+      }
+      rest.empresa = empresaNum;
+    }
+
     if (rest.modalidad) {
       const t = String(rest.modalidad).toLowerCase();
       rest.modalidad = t.includes('sincron') ? 'sincrónico' : 'e-learning';

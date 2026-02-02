@@ -5,7 +5,7 @@ export interface Inscripcion {
   codigoSence?: string;
   ordenCompra?: string;
   idSence?: string;
-  empresa: string;
+  empresa: number;
   idMoodle: string;
   nombreCurso?: string;
   modalidad: string;
