@@ -1,761 +1,431 @@
 {
-    "passed": [
-        {
-            "IdCurso": "13214",
-            "RutAlumno": "19496003",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13215",
-            "RutAlumno": "19496003",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13212",
-            "RutAlumno": "19496003",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13213",
-            "RutAlumno": "19496003",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13254",
-            "RutAlumno": "16293369",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.4",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13254",
-            "RutAlumno": "11480888",
-            "PorcentajeAvance": "0",
-            "PorcentajeAsistenciaAlumno": "20",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "0.0",
-            "EstadoCurso": "0",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13254",
-            "RutAlumno": "19913834",
-            "PorcentajeAvance": "0",
-            "PorcentajeAsistenciaAlumno": "20",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "0.0",
-            "EstadoCurso": "0",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13259",
-            "RutAlumno": "19007973",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.6",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13354",
-            "RutAlumno": "18311435",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.3",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13355",
-            "RutAlumno": "18717993",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13363",
-            "RutAlumno": "19268820",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.7",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13411",
-            "RutAlumno": "20202693",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13411",
-            "RutAlumno": "16552305",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13413",
-            "RutAlumno": "18813509",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.4",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13413",
-            "RutAlumno": "16008892",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.8",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13415",
-            "RutAlumno": "18813509",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.4",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13415",
-            "RutAlumno": "16008892",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.7",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13414",
-            "RutAlumno": "18813509",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13414",
-            "RutAlumno": "16008892",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13412",
-            "RutAlumno": "16552305",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13410",
-            "RutAlumno": "20202693",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.6",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13410",
-            "RutAlumno": "16552305",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13410",
-            "RutAlumno": "18813509",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13410",
-            "RutAlumno": "16008892",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "10201697",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "11818899",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "12289930",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.9",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "14007117",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "14071994",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "14118801",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "14239714",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "15432508",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.4",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "15769090",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "15940853",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "16576974",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "18183299",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "19692918",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "20324923",
-            "PorcentajeAvance": "20",
-            "PorcentajeAsistenciaAlumno": "40",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "0.0",
-            "EstadoCurso": "0",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "21214681",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "6541189",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13421",
-            "RutAlumno": "8653031",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13426",
-            "RutAlumno": "18311435",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.6",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13433",
-            "RutAlumno": "19445585",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13435",
-            "RutAlumno": "19445585",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.9",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13439",
-            "RutAlumno": "19990870",
-            "PorcentajeAvance": "20",
-            "PorcentajeAsistenciaAlumno": "20",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "0.0",
-            "EstadoCurso": "0",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13440",
-            "RutAlumno": "19990870",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13440",
-            "RutAlumno": "17174209",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13441",
-            "RutAlumno": "19990870",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.4",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13441",
-            "RutAlumno": "17174209",
-            "PorcentajeAvance": "50",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "4.5",
-            "EstadoCurso": "2",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13442",
-            "RutAlumno": "19990870",
-            "PorcentajeAvance": "50",
-            "PorcentajeAsistenciaAlumno": "50",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "0.0",
-            "EstadoCurso": "0",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13443",
-            "RutAlumno": "13703424",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13443",
-            "RutAlumno": "10377403",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.1",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13443",
-            "RutAlumno": "16471766",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13479",
-            "RutAlumno": "17969180",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "7.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13472",
-            "RutAlumno": "17129097",
-            "PorcentajeAvance": "40",
-            "PorcentajeAsistenciaAlumno": "60",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "0.0",
-            "EstadoCurso": "0",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13527",
-            "RutAlumno": "16740465",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.0",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13526",
-            "RutAlumno": "16740465",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "5.6",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        },
-        {
-            "IdCurso": "13534",
-            "RutAlumno": "20992484",
-            "PorcentajeAvance": "100",
-            "PorcentajeAsistenciaAlumno": "100",
-            "NotaTeorica": "0",
-            "EstadoTeorica": "0",
-            "NotaPractica": "0",
-            "EstadoPractica": "0",
-            "NotaFinal": "6.5",
-            "EstadoCurso": "1",
-            "Observacion": "Curso iniciado sin observación"
-        }
-    ],
+    "passed": [],
     "failed": [
+        {
+            "IdCurso": "330",
+            "RutAlumno": "19496003",
+            "correlative": "13214"
+        },
+        {
+            "IdCurso": "331",
+            "RutAlumno": "19496003",
+            "correlative": "13215"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "19496003",
+            "correlative": "13212"
+        },
+        {
+            "IdCurso": "327",
+            "RutAlumno": "19496003",
+            "correlative": "13213"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "16293369",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "17107403",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "11480888",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "13233717",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "19913834",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "17279368",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "15669367",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "25585786",
+            "correlative": "13254"
+        },
+        {
+            "IdCurso": "325",
+            "RutAlumno": "19007973",
+            "correlative": "13259"
+        },
+        {
+            "IdCurso": "318",
+            "RutAlumno": "18311435",
+            "correlative": "13354"
+        },
+        {
+            "IdCurso": "321",
+            "RutAlumno": "18717993",
+            "correlative": "13355"
+        },
+        {
+            "IdCurso": "318",
+            "RutAlumno": "19268820",
+            "correlative": "13363"
+        },
+        {
+            "IdCurso": "327",
+            "RutAlumno": "20202693",
+            "correlative": "13411"
+        },
+        {
+            "IdCurso": "327",
+            "RutAlumno": "16552305",
+            "correlative": "13411"
+        },
+        {
+            "IdCurso": "353",
+            "RutAlumno": "18813509",
+            "correlative": "13413"
+        },
+        {
+            "IdCurso": "353",
+            "RutAlumno": "16008892",
+            "correlative": "13413"
+        },
+        {
+            "IdCurso": "324",
+            "RutAlumno": "18813509",
+            "correlative": "13415"
+        },
+        {
+            "IdCurso": "324",
+            "RutAlumno": "16008892",
+            "correlative": "13415"
+        },
+        {
+            "IdCurso": "345",
+            "RutAlumno": "18813509",
+            "correlative": "13414"
+        },
+        {
+            "IdCurso": "345",
+            "RutAlumno": "16008892",
+            "correlative": "13414"
+        },
+        {
+            "IdCurso": "330",
+            "RutAlumno": "16552305",
+            "correlative": "13412"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "20202693",
+            "correlative": "13410"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "16552305",
+            "correlative": "13410"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "18813509",
+            "correlative": "13410"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "16008892",
+            "correlative": "13410"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "10201697",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "11818899",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "12289930",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "12615794",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "14007117",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "14071994",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "14118801",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "14239714",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "14573095",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "15432508",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "15769090",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "15940853",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "16576974",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "17884468",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "18183299",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "19692918",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "20324923",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "21214681",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "6541189",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "8653031",
+            "correlative": "13421"
+        },
+        {
+            "IdCurso": "347",
+            "RutAlumno": "19443729",
+            "correlative": "13424"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "18311435",
+            "correlative": "13426"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "22215082",
+            "correlative": "13427"
+        },
+        {
+            "IdCurso": "318",
+            "RutAlumno": "19445585",
+            "correlative": "13433"
+        },
+        {
+            "IdCurso": "377",
+            "RutAlumno": "19445585",
+            "correlative": "13435"
+        },
+        {
+            "IdCurso": "353",
+            "RutAlumno": "19990870",
+            "correlative": "13439"
+        },
+        {
+            "IdCurso": "353",
+            "RutAlumno": "17174209",
+            "correlative": "13439"
+        },
+        {
+            "IdCurso": "345",
+            "RutAlumno": "19990870",
+            "correlative": "13440"
+        },
+        {
+            "IdCurso": "345",
+            "RutAlumno": "17174209",
+            "correlative": "13440"
+        },
+        {
+            "IdCurso": "324",
+            "RutAlumno": "19990870",
+            "correlative": "13441"
+        },
+        {
+            "IdCurso": "324",
+            "RutAlumno": "17174209",
+            "correlative": "13441"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "19990870",
+            "correlative": "13442"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "17174209",
+            "correlative": "13442"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "15963183",
+            "correlative": "13443"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "17374960",
+            "correlative": "13443"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "13703424",
+            "correlative": "13443"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "10377403",
+            "correlative": "13443"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "17318883",
+            "correlative": "13443"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "16471766",
+            "correlative": "13443"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "20130246",
+            "correlative": "13443"
+        },
+        {
+            "IdCurso": "330",
+            "RutAlumno": "17969180",
+            "correlative": "13479"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "17969180",
+            "correlative": "13478"
+        },
+        {
+            "IdCurso": "327",
+            "RutAlumno": "17969180",
+            "correlative": "13480"
+        },
+        {
+            "IdCurso": "318",
+            "RutAlumno": "17129097",
+            "correlative": "13472"
+        },
+        {
+            "IdCurso": "318",
+            "RutAlumno": "20892500",
+            "correlative": "13473"
+        },
+        {
+            "IdCurso": "318",
+            "RutAlumno": "17904428",
+            "correlative": "13473"
+        },
+        {
+            "IdCurso": "318",
+            "RutAlumno": "8628753",
+            "correlative": "13473"
+        },
+        {
+            "IdCurso": "331",
+            "RutAlumno": "16740465",
+            "correlative": "13527"
+        },
+        {
+            "IdCurso": "327",
+            "RutAlumno": "16740465",
+            "correlative": "13526"
+        },
+        {
+            "IdCurso": "327",
+            "RutAlumno": "17079542",
+            "correlative": "13526"
+        },
+        {
+            "IdCurso": "325",
+            "RutAlumno": "17079542",
+            "correlative": "13529"
+        },
+        {
+            "IdCurso": "327",
+            "RutAlumno": "17079542",
+            "correlative": "13531"
+        },
+        {
+            "IdCurso": "326",
+            "RutAlumno": "17079542",
+            "correlative": "13530"
+        },
+        {
+            "IdCurso": "323",
+            "RutAlumno": "17079542",
+            "correlative": "13532"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "17079542",
+            "correlative": "13528"
+        },
+        {
+            "IdCurso": "330",
+            "RutAlumno": "20992484",
+            "correlative": "13534"
+        },
         {
             "IdCurso": "325",
             "RutAlumno": "26642032",
@@ -890,6 +560,11 @@
             "IdCurso": "314",
             "RutAlumno": "9873051",
             "correlative": "13620"
+        },
+        {
+            "IdCurso": "316",
+            "RutAlumno": "16740465",
+            "correlative": "13525"
         }
     ]
 }
