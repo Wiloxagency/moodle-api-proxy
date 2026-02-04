@@ -3,6 +3,7 @@ export interface Participante {
   nombres: string;
   apellidos: string;
   rut: string;
+  rutkey?: string; // Generado automáticamente (normalizado de rut)
   mail: string;
   telefono?: string;
   valorCobrado?: number;

@@ -53,6 +53,7 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
     valorFinal: toNumber(get('Valor FINAL') || get('Valor Final')),
     statusAlumnos: String(get('Status de Alumnos') || get('Estado Alumnos') || ''),
     comentarios: String(get('Comentarios') || '') || undefined,
+    ficha: String(get('Ficha') || '') || undefined,
   };
 }
 
@@ -92,17 +93,17 @@ export class InscripcionesController {
       }
     }
 
-    // Generar secuencia para numeroInscripcion (string), iniciando en 100000 (atómico)
+    // Generar secuencia para numeroInscripcion, iniciando en 100100 (atómico)
     // Usamos actualización con pipeline para evitar conflicto entre $setOnInsert y $inc en el mismo campo.
-    // Lógica: seq = (ifNull(seq, 99999)) + 1
+    // Lógica: seq = (ifNull(seq, 100099)) + 1
     const seqDoc = await counters.findOneAndUpdate(
       { _id: 'inscripciones' },
       [
-        { $set: { seq: { $add: [ { $ifNull: ['$seq', 99999] }, 1 ] } } }
+        { $set: { seq: { $add: [ { $ifNull: ['$seq', 100099] }, 1 ] } } }
       ] as any,
       { upsert: true, returnDocument: 'after' } as any
     );
-    const nextNum = (seqDoc as any)?.seq ?? 100000;
+    const nextNum = (seqDoc as any)?.seq ?? 100100;
 
     const normalizeModalidad = (m?: string) => {
       const t = String(m || '').toLowerCase();
@@ -128,6 +129,7 @@ export class InscripcionesController {
       valorFinal: body.valorFinal === undefined ? undefined : Number(body.valorFinal),
       statusAlumnos: String(body.statusAlumnos),
       comentarios: body.comentarios || undefined,
+      ficha: body.ficha || undefined,
     };
 
     const result = await col.insertOne(payload);

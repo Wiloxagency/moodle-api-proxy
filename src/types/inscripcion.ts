@@ -17,6 +17,7 @@ export interface Inscripcion {
   valorFinal?: number;
   statusAlumnos: string;
   comentarios?: string;
+  ficha?: string;
 }
 
 export type InscripcionWithId = Inscripcion & { _id: string };
