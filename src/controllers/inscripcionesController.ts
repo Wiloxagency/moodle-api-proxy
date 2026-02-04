@@ -25,14 +25,6 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
     return isNaN(date.getTime()) ? '' : date.toISOString();
   };
 
-  // Helper to normalize modalidad to canonical values
-  const toModalidad = (v: any): string => {
-    const t = String(v || '').trim().toLowerCase();
-    if (t === 'e-learning' || t === 'elearning' || t === 'e learning') return 'e-learning';
-    if (t.includes('sincr')) return 'sincrónico';
-    return t || 'e-learning';
-  };
-
   // Map explicit Spanish headers to internal fields
   return {
     numeroInscripcion: toNumber(get('N° Inscripción') || get('Nº Inscripción') || get('N Inscripción') || get('N° Inscripcion') || get('Nº Inscripcion')),
@@ -44,7 +36,7 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
     idMoodle: String(get('ID Moodle') || get('Id Moodle') || ''),
     empresa: String(get('Empresa') || get('Cliente') || 'Mutual'),
     nombreCurso: String(get('Nombre Curso') || ''),
-    modalidad: toModalidad(get('Modalidad')),
+    modalidad: String(get('Modalidad') || ''),
     inicio: toDateISO(get('Inicio')),
     termino: toDateISO(get('Termino') || get('Término')),
     ejecutivo: String(get('Ejecutivo') || ''),
@@ -105,22 +97,17 @@ export class InscripcionesController {
     );
     const nextNum = (seqDoc as any)?.seq ?? 100100;
 
-    const normalizeModalidad = (m?: string) => {
-      const t = String(m || '').toLowerCase();
-      return t.includes('sincr') ? 'sincrónico' : 'e-learning';
-    };
-
     const payload: Inscripcion = {
       numeroInscripcion: nextNum,
       correlativo: Number(body.correlativo),
       codigoCurso: String(body.codigoCurso),
-      empresa: 'Mutual',
+      empresa: String(body.empresa || 'Mutual'),
       codigoSence: body.codigoSence || undefined,
       ordenCompra: body.ordenCompra || undefined,
       idSence: body.idSence || undefined,
       idMoodle: String(body.idMoodle),
       nombreCurso: body.nombreCurso || undefined,
-      modalidad: normalizeModalidad(String(body.modalidad)),
+      modalidad: String(body.modalidad),
       inicio: String(body.inicio),
       termino: body.termino || undefined,
       ejecutivo: String(body.ejecutivo),
@@ -145,10 +132,6 @@ export class InscripcionesController {
     const { id } = req.params;
     const incoming = req.body as any;
     const { _id, numeroInscripcion, empresa, ...rest } = incoming;
-    if (rest.modalidad) {
-      const t = String(rest.modalidad).toLowerCase();
-      rest.modalidad = t.includes('sincron') ? 'sincrónico' : 'e-learning';
-    }
     await col.updateOne({ _id: new ObjectId(id) } as any, { $set: rest });
     const updated = await col.findOne({ _id: new ObjectId(id) } as any);
     res.json({ success: true, data: updated });
