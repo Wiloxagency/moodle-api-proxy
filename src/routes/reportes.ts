@@ -6,5 +6,7 @@ const router = Router();
 const ctrl = new ReportesController();
 
 router.get('/avances', asyncHandler(ctrl.getReporteAvances.bind(ctrl)));
+router.get('/vimica', asyncHandler(ctrl.getReporteVimica.bind(ctrl)));
+router.post('/vimica/enviar', asyncHandler(ctrl.postEnviarVimica.bind(ctrl)));
 
 export default router;

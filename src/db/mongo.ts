@@ -69,6 +69,14 @@ export async function getUsersCollection(): Promise<Collection<User>> {
   return database.collection<User>(name);
 }
 
+
+export async function getVimicaCollection(): Promise<import('mongodb').Collection<any>> {
+  const database = await getDb();
+  // @ts-ignore
+  const name = (config as any).mongo.vimicaCollection || 'vimica';
+  return database.collection<any>(name);
+}
+
 export async function closeMongo(): Promise<void> {
   if (client) {
     await client.close();

@@ -28,7 +28,8 @@ export const config = {
     modalidadesCollection: process.env.MONGODB_MODALIDADES_COLLECTION || 'modalidades',
     gradesReportsCollection: process.env.MONGODB_GRADES_REPORTS_COLLECTION || 'grades_reports',
     dashboardCacheCollection: process.env.MONGODB_DASHBOARD_CACHE_COLLECTION || 'dashboard_cache',
-    usersCollection: process.env.MONGODB_USERS_COLLECTION || 'users'
+    usersCollection: process.env.MONGODB_USERS_COLLECTION || 'users',
+    vimicaCollection: process.env.MONGODB_VIMICA_COLLECTION || 'vimica'
   },
   
   // CORS configuration
