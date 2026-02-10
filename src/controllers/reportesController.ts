@@ -315,6 +315,12 @@ export class ReportesController {
         RegistrosLeidos: data?.RegistrosLeidos,
       });
 
+      const insCol = await getInscripcionesCollection();
+      await insCol.updateMany(
+        { empresa: 1, status: { $in: ['cerrada', 'CERRADA', 'Cerrada'] }, status_vimica: { $ne: 'cerrada' } } as any,
+        { $set: { status_vimica: 'cerrada' } }
+      );
+
       res.json({ success: true, data });
     } catch (error: any) {
       const status = axios.isAxiosError(error) ? (error.response?.status || 502) : 502;
