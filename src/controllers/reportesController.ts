@@ -65,20 +65,17 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const activeIns = inscripciones.filter((ins: any) => {
-    if (!ins?.termino) return false;
-    const end = new Date(ins.termino);
-    if (isNaN(end.getTime())) return false;
-    end.setHours(0, 0, 0, 0);
-    return end.getTime() >= today.getTime();
+  const openIns = inscripciones.filter((ins: any) => {
+    const status = String(ins?.status_vimica || '').trim().toLowerCase();
+    return status !== 'cerrada';
   });
 
-  const insByNumero = new Map<number, { correlativo?: number; termino?: string }>();
+  const insByNumero = new Map<number, { correlativo?: number; termino?: string; inicio?: string }>();
   const numerosSet = new Set<any>();
-  for (const ins of activeIns) {
+  for (const ins of openIns) {
     const num = Number((ins as any).numeroInscripcion);
     if (!Number.isFinite(num)) continue;
-    insByNumero.set(num, { correlativo: (ins as any).correlativo, termino: (ins as any).termino });
+    insByNumero.set(num, { correlativo: (ins as any).correlativo, termino: (ins as any).termino, inicio: (ins as any).inicio });
     numerosSet.add(num);
     numerosSet.add(String(num));
   }
@@ -95,6 +92,35 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
     return Number.isFinite(n) ? n : 0;
   };
 
+  const parseDateOnly = (value?: string): Date | null => {
+    if (!value) return null;
+    const datePart = value.substring(0, 10);
+    const [y, m, d] = datePart.split('-');
+    if (y && m && d) {
+      const date = new Date(Number(y), Number(m) - 1, Number(d));
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+    const fallback = new Date(value);
+    if (isNaN(fallback.getTime())) return null;
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  };
+
+  const calcPorcentajeAvance = (inicio?: string, termino?: string) => {
+    const start = parseDateOnly(inicio);
+    const end = parseDateOnly(termino);
+    if (!start || !end) return 1;
+    const todayDate = new Date(today);
+    todayDate.setHours(0, 0, 0, 0);
+    if (todayDate.getTime() <= start.getTime()) return 1;
+    if (todayDate.getTime() >= end.getTime()) return 100;
+    const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000));
+    const elapsedDays = Math.max(0, Math.round((todayDate.getTime() - start.getTime()) / 86400000));
+    const pct = 1 + Math.floor((elapsedDays * 99) / totalDays);
+    return Math.min(100, Math.max(1, pct));
+  };
+
   const avanceCursos: VimicaPayload['AvanceCursos'] = [];
   for (const g of grades) {
     const numero = Number((g as any).numeroInscripcion);
@@ -105,23 +131,32 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
     const rutRaw = String((g as any).RutAlumno || '').trim();
     const rutClean = rutRaw.split('-')[0].replace(/[^0-9]/g, '');
 
-    const porcentajeAvance = (g as any).PorcentajeAvance;
+    const porcentajeAvanceNum = calcPorcentajeAvance(ins.inicio, ins.termino);
     const porcentajeAsistencia = (g as any).PorcentajeAsistenciaAlumno;
     const notaFinalVal = (g as any).NotaFinal;
     const notaFinalNum = toNum(notaFinalVal);
 
-    const termino = ins.termino ? new Date(ins.termino) : null;
-    if (termino) termino.setHours(0, 0, 0, 0);
-    const terminoAfter = termino ? termino.getTime() > today.getTime() : false;
+    const termino = ins.termino ? parseDateOnly(ins.termino) : null;
+    const cursoFinalizado = termino ? termino.getTime() <= today.getTime() : false;
+    const aprobado = notaFinalNum >= 5;
 
     let estadoCurso = '0';
-    if (notaFinalNum >= 5) estadoCurso = '1';
-    else if (!terminoAfter) estadoCurso = '2';
+    let observacion = '';
+
+    if (aprobado) {
+      estadoCurso = '1';
+      observacion = 'Alumno Aprobado';
+    } else if (cursoFinalizado) {
+      estadoCurso = '2';
+      observacion = 'Alumno Reprobado';
+    } else if (porcentajeAvanceNum <= 1) {
+      observacion = 'Curso iniciado sin observación';
+    }
 
     avanceCursos.push({
       IdCurso: String(ins.correlativo ?? ''),
       RutAlumno: rutClean,
-      PorcentajeAvance: porcentajeAvance == null ? '' : String(porcentajeAvance),
+      PorcentajeAvance: String(porcentajeAvanceNum),
       PorcentajeAsistenciaAlumno: porcentajeAsistencia == null ? '' : String(porcentajeAsistencia),
       NotaTeorica: '0',
       EstadoTeorica: '0',
@@ -129,7 +164,7 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
       EstadoPractica: '0',
       NotaFinal: notaFinalVal == null ? '' : String(notaFinalVal),
       EstadoCurso: estadoCurso,
-      Observacion: 'Curso iniciado sin observación',
+      Observacion: observacion,
     });
   }
 
@@ -237,7 +272,15 @@ export class ReportesController {
     res.json(payload);
   }
 
-  
+  async cerrarVimicaProcesadas(_req: Request, res: Response): Promise<void> {
+    const col = await getInscripcionesCollection();
+    const result = await col.updateMany(
+      { empresa: 1, status: { $in: ['cerrada', 'CERRADA', 'Cerrada'] }, status_vimica: { $ne: 'cerrada' } } as any,
+      { $set: { status_vimica: 'cerrada' } }
+    );
+    res.json({ success: true, data: { matched: result.matchedCount, modified: result.modifiedCount } });
+  }
+
   async postEnviarVimica(req: Request, res: Response): Promise<void> {
     try {
       const hasBody = req.body && Object.keys(req.body).length > 0;

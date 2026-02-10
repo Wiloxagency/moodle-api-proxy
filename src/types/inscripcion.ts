@@ -17,6 +17,8 @@ export interface Inscripcion {
   responsable?: string;
   valorFinal?: number;
   statusAlumnos: string;
+  status?: string;
+  status_vimica?: string;
   comentarios?: string;
 }
 
