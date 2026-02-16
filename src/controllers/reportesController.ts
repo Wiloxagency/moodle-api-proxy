@@ -329,6 +329,12 @@ export class ReportesController {
     res.json(payload);
   }
 
+  async getVimicaHistorial(_req: Request, res: Response): Promise<void> {
+    const vimicaCol = await getVimicaCollection();
+    const items = await vimicaCol.find({}).sort({ _id: -1 } as any).toArray();
+    res.json({ success: true, data: items });
+  }
+
   async cerrarVimicaProcesadas(_req: Request, res: Response): Promise<void> {
     const col = await getInscripcionesCollection();
     const result = await col.updateMany(
