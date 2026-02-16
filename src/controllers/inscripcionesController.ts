@@ -25,12 +25,13 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
     return isNaN(date.getTime()) ? '' : date.toISOString();
   };
 
-  // Helper to normalize modalidad to canonical values
-  const toModalidad = (v: any): string => {
-    const t = String(v || '').trim().toLowerCase();
-    if (t === 'e-learning' || t === 'elearning' || t === 'e learning') return 'e-learning';
-    if (t.includes('sincr')) return 'sincrónico';
-    return t || 'e-learning';
+  // Helper to keep numeric codes when possible (otherwise keep trimmed text)
+  const toCodeOrText = (v: any): number | string => {
+    if (v === undefined || v === null || v === '') return '';
+    const raw = String(v).trim();
+    const n = Number(raw);
+    if (Number.isFinite(n)) return n;
+    return raw;
   };
 
   // Map explicit Spanish headers to internal fields
@@ -44,10 +45,10 @@ function mapExcelRow(row: Record<string, any>): Inscripcion {
     idMoodle: String(get('ID Moodle') || get('Id Moodle') || ''),
     empresa: toNumber(get('Empresa') || get('Cliente') || ''),
     nombreCurso: String(get('Nombre Curso') || ''),
-    modalidad: toModalidad(get('Modalidad')),
+    modalidad: toCodeOrText(get('Modalidad')),
     inicio: toDateISO(get('Inicio')),
     termino: toDateISO(get('Termino') || get('Término')),
-    ejecutivo: String(get('Ejecutivo') || ''),
+    ejecutivo: toCodeOrText(get('Ejecutivo')) as any,
     responsable: String(get('Responsable') || '') || undefined,
     numAlumnosInscritos: toNumber(get('Num Alumnos Inscritos') || get('N° Alumnos Inscritos')),
     valorInicial: toNumber(get('Valor INICIAL') || get('Valor Inicial')),
@@ -112,9 +113,9 @@ export class InscripcionesController {
     );
     const nextNum = (seqDoc as any)?.seq ?? 100000;
 
-    const normalizeModalidad = (m?: string) => {
-      const t = String(m || '').toLowerCase();
-      return t.includes('sincr') ? 'sincrónico' : 'e-learning';
+    const toNumericOrText = (value: any): number | string => {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : String(value);
     };
 
     const payload: Inscripcion = {
@@ -127,10 +128,10 @@ export class InscripcionesController {
       idSence: body.idSence || undefined,
       idMoodle: String(body.idMoodle),
       nombreCurso: body.nombreCurso || undefined,
-      modalidad: normalizeModalidad(String(body.modalidad)),
+      modalidad: toNumericOrText(body.modalidad),
       inicio: String(body.inicio),
       termino: body.termino || undefined,
-      ejecutivo: String(body.ejecutivo),
+      ejecutivo: toNumericOrText(body.ejecutivo) as any,
       responsable: body.responsable ? String(body.responsable) : undefined,
       numAlumnosInscritos: Number(body.numAlumnosInscritos),
       valorInicial: body.valorInicial === undefined ? undefined : Number(body.valorInicial),
@@ -162,9 +163,13 @@ export class InscripcionesController {
       rest.empresa = empresaNum;
     }
 
-    if (rest.modalidad) {
-      const t = String(rest.modalidad).toLowerCase();
-      rest.modalidad = t.includes('sincron') ? 'sincrónico' : 'e-learning';
+    if (rest.modalidad !== undefined) {
+      const n = Number(rest.modalidad);
+      if (Number.isFinite(n)) rest.modalidad = n;
+    }
+    if (rest.ejecutivo !== undefined) {
+      const n = Number(rest.ejecutivo);
+      if (Number.isFinite(n)) rest.ejecutivo = n;
     }
     await col.updateOne({ _id: new ObjectId(id) } as any, { $set: rest });
     const updated = await col.findOne({ _id: new ObjectId(id) } as any);

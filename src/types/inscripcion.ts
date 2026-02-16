@@ -8,10 +8,10 @@ export interface Inscripcion {
   empresa: number;
   idMoodle: string;
   nombreCurso?: string;
-  modalidad: string;
+  modalidad: number | string;
   inicio: string;
   termino?: string;
-  ejecutivo: string;
+  ejecutivo: number | string;
   numAlumnosInscritos: number;
   valorInicial?: number;
   responsable?: string;
