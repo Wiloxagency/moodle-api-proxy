@@ -50,10 +50,67 @@ interface VimicaResponse {
 }
 
 const VIMICA_ENDPOINT = 'https://api.integracionproveedores.com/post/avancecurso';
+const VIMICA_USUARIO = 'edutecno';
+const VIMICA_TOKEN = 'ZWR1dGVjbm9fMTAvMDYvMjAxOSAxMjozODowMQ==';
+const VIMICA_DEFAULT_VALUES = {
+  PorcentajeAvance: '0',
+  PorcentajeAsistenciaAlumno: '0',
+  NotaTeorica: '0',
+  EstadoTeorica: '0',
+  NotaPractica: '0',
+  EstadoPractica: '0',
+  NotaFinal: '0',
+  EstadoCurso: '0',
+  Observacion: '',
+} as const;
+
+type VimicaAvanceCurso = VimicaPayload['AvanceCursos'][number];
+
+const normalizeVimicaPayload = (payload: VimicaPayload): VimicaPayload => {
+  const source = Array.isArray(payload?.AvanceCursos) ? payload.AvanceCursos : [];
+  const seen = new Set<string>();
+  const avanceCursos: VimicaAvanceCurso[] = [];
+
+  const withDefault = (value: any, fallback: string): string => {
+    const normalized = String(value ?? '').trim();
+    return normalized === '' ? fallback : normalized;
+  };
+
+  for (const item of source) {
+    const idCurso = String(item?.IdCurso ?? '').trim();
+    const rutAlumno = String(item?.RutAlumno ?? '').trim();
+
+    // IdCurso y RutAlumno son obligatorios: si faltan, se elimina el registro
+    if (!idCurso || !rutAlumno) continue;
+
+    // Eliminar duplicados por par IdCurso + RutAlumno (se conserva la primera ocurrencia)
+    const key = `${idCurso}::${rutAlumno}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    avanceCursos.push({
+      IdCurso: idCurso,
+      RutAlumno: rutAlumno,
+      PorcentajeAvance: withDefault(item?.PorcentajeAvance, VIMICA_DEFAULT_VALUES.PorcentajeAvance),
+      PorcentajeAsistenciaAlumno: withDefault(item?.PorcentajeAsistenciaAlumno, VIMICA_DEFAULT_VALUES.PorcentajeAsistenciaAlumno),
+      NotaTeorica: withDefault(item?.NotaTeorica, VIMICA_DEFAULT_VALUES.NotaTeorica),
+      EstadoTeorica: withDefault(item?.EstadoTeorica, VIMICA_DEFAULT_VALUES.EstadoTeorica),
+      NotaPractica: withDefault(item?.NotaPractica, VIMICA_DEFAULT_VALUES.NotaPractica),
+      EstadoPractica: withDefault(item?.EstadoPractica, VIMICA_DEFAULT_VALUES.EstadoPractica),
+      NotaFinal: withDefault(item?.NotaFinal, VIMICA_DEFAULT_VALUES.NotaFinal),
+      EstadoCurso: withDefault(item?.EstadoCurso, VIMICA_DEFAULT_VALUES.EstadoCurso),
+      Observacion: withDefault(item?.Observacion, VIMICA_DEFAULT_VALUES.Observacion),
+    });
+  }
+
+  return {
+    Usuario: String(payload?.Usuario || VIMICA_USUARIO),
+    Token: String(payload?.Token || VIMICA_TOKEN),
+    AvanceCursos: avanceCursos,
+  };
+};
 
 async function buildVimicaPayload(): Promise<VimicaPayload> {
-  const usuario = 'edutecno';
-  const token = 'ZWR1dGVjbm9fMTAvMDYvMjAxOSAxMjozODowMQ==';
   const empresaCode = 1;
 
   const [insCol, gradesCol] = await Promise.all([
@@ -168,11 +225,11 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
     });
   }
 
-  return {
-    Usuario: usuario,
-    Token: token,
+  return normalizeVimicaPayload({
+    Usuario: VIMICA_USUARIO,
+    Token: VIMICA_TOKEN,
     AvanceCursos: avanceCursos,
-  };
+  });
 }
 
 
@@ -284,7 +341,8 @@ export class ReportesController {
   async postEnviarVimica(req: Request, res: Response): Promise<void> {
     try {
       const hasBody = req.body && Object.keys(req.body).length > 0;
-      const payload = (hasBody ? req.body : await buildVimicaPayload()) as VimicaPayload;
+      const rawPayload = (hasBody ? req.body : await buildVimicaPayload()) as VimicaPayload;
+      const payload = normalizeVimicaPayload(rawPayload);
       console.log("Enviando reporte Vimica: ",  payload);
       const response = await axios.post(VIMICA_ENDPOINT, payload, {
         headers: { 'Content-Type': 'application/json' },
