@@ -143,13 +143,14 @@ export class ParticipantsGradesReportController {
       return Number.isFinite(n) ? n : null;
     };
 
-    const output: Array<{ numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null }> = [];
+    const output: Array<{ numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null; NotaDiagnostica: number | null }> = [];
 
     for (const p of participantes) {
       const rut = (p as any).rut || '';
       let avance: number | null = null;
       let asistencia: number | null = null;
       let notaFinal: number | null = null;
+      let notaDiagnostica: number | null = null;
       try {
         // @ts-ignore - reuse internal method
         const progress = await (this.finalCtrl as any).processSingleGrade(rut, courseId, rut);
@@ -157,6 +158,7 @@ export class ParticipantsGradesReportController {
           avance = toNum((progress as any).PorcentajeAvance);
           asistencia = toNum((progress as any).PorcentajeAsistenciaAlumno);
           notaFinal = toNum((progress as any).NotaFinal);
+          notaDiagnostica = toNum((progress as any).NotaDiagnostica);
         }
       } catch {}
 
@@ -167,6 +169,7 @@ export class ParticipantsGradesReportController {
         PorcentajeAvance: avance,
         PorcentajeAsistenciaAlumno: asistencia,
         NotaFinal: notaFinal,
+        NotaDiagnostica: notaDiagnostica,
       };
 
       // Persistir por participante (upsert)

@@ -13,6 +13,7 @@ interface ProgressData {
   NotaPractica: string;
   EstadoPractica: string;
   NotaFinal: string;
+  NotaDiagnostica?: string;
   EstadoCurso: string;
   Observacion: string;
 }
@@ -33,11 +34,26 @@ interface FinalGradeResponseData {
   progress?: ProgressData;
 }
 
+interface SimpleGradeItem {
+  itemtype?: string;
+  itemname?: string;
+  itemmodule?: string;
+  iteminstance?: number | null;
+  graderaw?: number | null;
+}
+
+interface FirstModuleContext {
+  moduleKey: string;
+  moduleName: string;
+}
+
 export class StudentFinalGradeController {
   private moodleService: MoodleService;
+  private firstModuleContextCache: Map<number, { expiresAt: number; context: FirstModuleContext | null }>;
 
   constructor() {
     this.moodleService = new MoodleService();
+    this.firstModuleContextCache = new Map();
   }
 
   // POST /api/grades/final - Batch processing
@@ -189,11 +205,21 @@ export class StudentFinalGradeController {
       return null;
     }
 
+    // 5) Find "Evaluación/Prueba Diagnóstica" in first module only (accent/case tolerant)
+    const diagnosticaMatch = await this.findDiagnosticaInFirstModule(items, courseIdNum);
+
     // Normalize graderaw to a number when possible
     const gradeVal: number | null = typeof match.graderaw === 'number'
       ? match.graderaw
       : (match.graderaw != null ? Number(match.graderaw) : null);
-    
+
+    const diagnosticaGradeVal: number | null = typeof diagnosticaMatch?.graderaw === 'number'
+      ? diagnosticaMatch.graderaw
+      : (diagnosticaMatch?.graderaw != null ? Number(diagnosticaMatch.graderaw) : null);
+    const notaDiagnostica = diagnosticaMatch
+      ? (diagnosticaGradeVal != null ? diagnosticaGradeVal.toFixed(1) : '0.0')
+      : '';
+
     // Determine EstadoCurso: 0 if no grade or grade is 0, 1 if grade >= 5, 2 if grade < 5
     let approved: number;
     if (gradeVal == null || gradeVal === 0) {
@@ -225,6 +251,7 @@ export class StudentFinalGradeController {
       NotaPractica: "0",
       EstadoPractica: "0",
       NotaFinal: gradeVal != null ? gradeVal.toFixed(1) : "0.0",
+      NotaDiagnostica: notaDiagnostica,
       EstadoCurso: approved.toString(),
       Observacion: "Curso iniciado sin observación"
     };
@@ -278,8 +305,8 @@ export class StudentFinalGradeController {
     }
   }
 
-  private mapGradesToSimpleItems(rawData: any): Array<{ itemtype?: string; itemname?: string; graderaw?: number | null }> {
-    const items: Array<{ itemtype?: string; itemname?: string; graderaw?: number | null }> = [];
+  private mapGradesToSimpleItems(rawData: any): SimpleGradeItem[] {
+    const items: SimpleGradeItem[] = [];
 
     // Shape A: gradereport_user_get_grade_items
     if (rawData && rawData.usergrades && Array.isArray(rawData.usergrades) && rawData.usergrades.length > 0) {
@@ -287,7 +314,14 @@ export class StudentFinalGradeController {
       if (Array.isArray(ug.gradeitems)) {
         for (const gi of ug.gradeitems) {
           const gr = (typeof gi.graderaw === 'number') ? gi.graderaw : (gi.graderaw != null ? Number(gi.graderaw) : null);
-          items.push({ itemtype: gi.itemtype, itemname: gi.itemname, graderaw: gr });
+          const instanceNum = gi.iteminstance != null ? Number(gi.iteminstance) : NaN;
+          items.push({
+            itemtype: gi.itemtype,
+            itemname: gi.itemname,
+            itemmodule: gi.itemmodule,
+            iteminstance: Number.isFinite(instanceNum) ? instanceNum : null,
+            graderaw: gr,
+          });
         }
       }
       return items;
@@ -306,12 +340,26 @@ export class StudentFinalGradeController {
           const userGrades = rawData.grades[itemIdStr];
           const ug = Array.isArray(userGrades) ? userGrades[0] : userGrades;
           const gradeNum: number | null = (ug && typeof ug.grade === 'number') ? ug.grade : (ug && ug.grade != null ? Number(ug.grade) : null);
-          items.push({ itemtype: meta.itemtype, itemname: meta.itemname, graderaw: gradeNum });
+          const instanceNum = meta.iteminstance != null ? Number(meta.iteminstance) : NaN;
+          items.push({
+            itemtype: meta.itemtype,
+            itemname: meta.itemname,
+            itemmodule: meta.itemmodule,
+            iteminstance: Number.isFinite(instanceNum) ? instanceNum : null,
+            graderaw: gradeNum,
+          });
         }
       } else {
         // Sometimes items[].calculation or other forms exist; we can't infer grades reliably without grades mapping
         for (const it of rawData.items) {
-          items.push({ itemtype: it.itemtype, itemname: it.itemname, graderaw: null });
+          const instanceNum = it.iteminstance != null ? Number(it.iteminstance) : NaN;
+          items.push({
+            itemtype: it.itemtype,
+            itemname: it.itemname,
+            itemmodule: it.itemmodule,
+            iteminstance: Number.isFinite(instanceNum) ? instanceNum : null,
+            graderaw: null,
+          });
         }
       }
       return items;
@@ -320,7 +368,90 @@ export class StudentFinalGradeController {
     return items; // empty
   }
 
-  private calculateQuizProgress(items: Array<{ itemtype?: string; itemname?: string; graderaw?: number | null }>): number {
+  private isDiagnosticActivityName(name?: string): boolean {
+    if (!name) return false;
+    const normalized = this.normalize(name);
+    const hasDiagnosticKeyword = normalized.includes('diagnostic');
+    const hasTypeKeyword = normalized.includes('evaluacion') || normalized.includes('prueba');
+    return hasDiagnosticKeyword && hasTypeKeyword;
+  }
+
+  private buildModuleKey(modname?: string, instance?: number | null): string {
+    const mod = String(modname || '').trim().toLowerCase();
+    const inst = Number(instance);
+    if (!mod || !Number.isFinite(inst)) return '';
+    return `${mod}::${inst}`;
+  }
+
+  private extractFirstModuleContext(rawContents: any): FirstModuleContext | null {
+    if (!Array.isArray(rawContents)) return null;
+
+    const firstSectionWithModules = rawContents
+      .filter((section: any) => Array.isArray(section?.modules) && section.modules.length > 0)
+      .sort((a: any, b: any) => Number(a?.section ?? 0) - Number(b?.section ?? 0))[0];
+
+    const firstModule = firstSectionWithModules?.modules?.[0];
+    if (!firstModule) return null;
+
+    const moduleName = this.normalize(String(firstModule?.name || ''));
+    const moduleKey = this.buildModuleKey(firstModule?.modname, firstModule?.instance);
+
+    if (!moduleName && !moduleKey) return null;
+    return { moduleKey, moduleName };
+  }
+
+  private async getFirstModuleContext(courseIdNum: number): Promise<FirstModuleContext | null> {
+    const cacheTtlMs = 5 * 60 * 1000;
+    const now = Date.now();
+    const cached = this.firstModuleContextCache.get(courseIdNum);
+    if (cached && cached.expiresAt > now) {
+      return cached.context;
+    }
+
+    try {
+      const contentsResult = await this.moodleService.getCourseGradeItems(courseIdNum);
+      const context = contentsResult.success ? this.extractFirstModuleContext(contentsResult.data) : null;
+      this.firstModuleContextCache.set(courseIdNum, { expiresAt: now + cacheTtlMs, context });
+      return context;
+    } catch {
+      this.firstModuleContextCache.set(courseIdNum, { expiresAt: now + cacheTtlMs, context: null });
+      return null;
+    }
+  }
+
+  private async findDiagnosticaInFirstModule(items: SimpleGradeItem[], courseIdNum: number): Promise<SimpleGradeItem | undefined> {
+    const modItems = items.filter((it) => (it.itemtype || '').toLowerCase() === 'mod');
+    if (!modItems.length) return undefined;
+
+    const diagnosticaCandidates = modItems.filter((it) => this.isDiagnosticActivityName(it.itemname));
+    if (!diagnosticaCandidates.length) return undefined;
+
+    const firstModuleContext = await this.getFirstModuleContext(courseIdNum);
+    if (firstModuleContext) {
+      const byContext = diagnosticaCandidates.find((candidate) => {
+        const candidateKey = this.buildModuleKey(candidate.itemmodule, candidate.iteminstance);
+        if (firstModuleContext.moduleKey && candidateKey && candidateKey === firstModuleContext.moduleKey) {
+          return true;
+        }
+
+        const normalizedItemName = this.normalize(candidate.itemname || '');
+        const moduleName = firstModuleContext.moduleName || '';
+        if (!normalizedItemName || !moduleName) return false;
+        return normalizedItemName === moduleName || normalizedItemName.includes(moduleName) || moduleName.includes(normalizedItemName);
+      });
+
+      if (byContext) return byContext;
+      return undefined;
+    }
+
+    // Fallback when course contents endpoint is not available for this token:
+    // infer "primer módulo" from the first graded module item order.
+    const firstModItem = modItems[0];
+    if (!firstModItem) return undefined;
+    return this.isDiagnosticActivityName(firstModItem.itemname) ? firstModItem : undefined;
+  }
+
+  private calculateQuizProgress(items: SimpleGradeItem[]): number {
     // Count items where itemmodule === "quiz"
     const quizItems = items.filter(item => {
       // Check if itemtype is "mod" and itemname contains quiz indicators
@@ -349,7 +480,7 @@ export class StudentFinalGradeController {
     return Math.round((totalApprovedQuiz / totalQuiz) * 100);
   }
 
-  private calculateAttendanceQuiz(items: Array<{ itemtype?: string; itemname?: string; graderaw?: number | null }>): number {
+  private calculateAttendanceQuiz(items: SimpleGradeItem[]): number {
     // Count items where itemmodule === "quiz"
     const quizItems = items.filter(item => {
       // Check if itemtype is "mod" and itemname contains quiz indicators

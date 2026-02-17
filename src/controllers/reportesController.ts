@@ -13,6 +13,7 @@ interface ReporteAvanceRow {
   fechaInicio: string;
   fechaFinal: string;
   notaFinal: number | null;
+  notaDiagnostica: number | null;
   porcentajeAvance: number | null;
   porcentajeAsistencia: number | null;
   fechaReporte: string;
@@ -312,6 +313,7 @@ export class ReportesController {
           fechaInicio: String((ins as any).inicio || ''),
           fechaFinal: String((ins as any).termino || ''),
           notaFinal: grade?.NotaFinal ?? null,
+          notaDiagnostica: grade?.NotaDiagnostica ?? null,
           porcentajeAvance: grade?.PorcentajeAvance ?? null,
           porcentajeAsistencia: grade?.PorcentajeAsistenciaAlumno ?? null,
           fechaReporte: reportDate,
