@@ -14,6 +14,7 @@ interface ProgressData {
   EstadoPractica: string;
   NotaFinal: string;
   NotaDiagnostica?: string;
+  UltimoAcceso?: string;
   EstadoCurso: string;
   Observacion: string;
 }
@@ -50,10 +51,12 @@ interface FirstModuleContext {
 export class StudentFinalGradeController {
   private moodleService: MoodleService;
   private firstModuleContextCache: Map<number, { expiresAt: number; context: FirstModuleContext | null }>;
+  private courseLastAccessCache: Map<number, { expiresAt: number; byUserId: Map<number, string> }>;
 
   constructor() {
     this.moodleService = new MoodleService();
     this.firstModuleContextCache = new Map();
+    this.courseLastAccessCache = new Map();
   }
 
   // POST /api/grades/final - Batch processing
@@ -240,6 +243,9 @@ export class StudentFinalGradeController {
       attendanceQuiz = 100;
     }
 
+    const courseLastAccessMap = await this.getCourseLastAccessMap(courseIdNum);
+    const ultimoAcceso = courseLastAccessMap.get(userId) || '';
+
     // Format the response according to the structure
     const progress: ProgressData = {
       IdCurso: correlative || courseId,  // Use correlative if provided, otherwise use courseId
@@ -252,11 +258,45 @@ export class StudentFinalGradeController {
       EstadoPractica: "0",
       NotaFinal: gradeVal != null ? gradeVal.toFixed(1) : "0.0",
       NotaDiagnostica: notaDiagnostica,
+      UltimoAcceso: ultimoAcceso,
       EstadoCurso: approved.toString(),
       Observacion: "Curso iniciado sin observación"
     };
 
     return progress;
+  }
+
+  private async getCourseLastAccessMap(courseId: number): Promise<Map<number, string>> {
+    const now = Date.now();
+    const cached = this.courseLastAccessCache.get(courseId);
+    if (cached && cached.expiresAt > now) return cached.byUserId;
+
+    const byUserId = new Map<number, string>();
+    try {
+      const enrolledUsers = await this.moodleService.getEnrolledUsers(courseId);
+      if (enrolledUsers.success && Array.isArray(enrolledUsers.data)) {
+        for (const user of enrolledUsers.data) {
+          const userId = Number((user as any).id);
+          if (!Number.isFinite(userId)) continue;
+          const lastAccessRaw = (user as any).lastaccess;
+          const lastAccessNum = Number(lastAccessRaw);
+          if (Number.isFinite(lastAccessNum) && lastAccessNum > 0) {
+            byUserId.set(userId, new Date(lastAccessNum * 1000).toISOString());
+          } else {
+            byUserId.set(userId, '');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error getting course last access map:', error);
+    }
+
+    this.courseLastAccessCache.set(courseId, {
+      expiresAt: now + 5 * 60 * 1000,
+      byUserId,
+    });
+
+    return byUserId;
   }
 
   private shouldIgnoreProgress(progress: ProgressData): boolean {

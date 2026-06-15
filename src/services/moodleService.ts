@@ -307,6 +307,92 @@ export class MoodleService {
   }
 
   /**
+   * Get users by field using exact matching (username, idnumber, email, id)
+   */
+  async getUsersByField(field: 'id' | 'idnumber' | 'username' | 'email', value: string): Promise<ApiResponse<any[]>> {
+    return this.makeRequest<any[]>({
+      wsfunction: 'core_user_get_users_by_field',
+      field,
+      'values[0]': value
+    });
+  }
+
+  /**
+   * Update Moodle user profile fields
+   */
+  async updateUser(user: {
+    id: number;
+    firstname?: string;
+    lastname?: string;
+    email?: string;
+    username?: string;
+    idnumber?: string;
+    phone1?: string;
+  }): Promise<ApiResponse<any>> {
+    const params: MoodleWebServiceParams = {
+      wsfunction: 'core_user_update_users',
+      'users[0][id]': user.id.toString()
+    };
+
+    if (user.firstname !== undefined) params['users[0][firstname]'] = user.firstname;
+    if (user.lastname !== undefined) params['users[0][lastname]'] = user.lastname;
+    if (user.email !== undefined) params['users[0][email]'] = user.email;
+    if (user.username !== undefined) params['users[0][username]'] = user.username;
+    if (user.idnumber !== undefined) params['users[0][idnumber]'] = user.idnumber;
+    if (user.phone1 !== undefined) params['users[0][phone1]'] = user.phone1;
+
+    return this.makeRequest<any>(params);
+  }
+
+  /**
+   * Create a Moodle user account
+   */
+  async createUser(user: {
+    username: string;
+    firstname: string;
+    lastname: string;
+    email: string;
+    password: string;
+    auth?: string;
+    idnumber?: string;
+    phone1?: string;
+  }): Promise<ApiResponse<any>> {
+    const params: MoodleWebServiceParams = {
+      wsfunction: 'core_user_create_users',
+      'users[0][username]': user.username,
+      'users[0][firstname]': user.firstname,
+      'users[0][lastname]': user.lastname,
+      'users[0][email]': user.email,
+      'users[0][password]': user.password
+    };
+
+    if (user.auth !== undefined) params['users[0][auth]'] = user.auth;
+    if (user.idnumber !== undefined) params['users[0][idnumber]'] = user.idnumber;
+    if (user.phone1 !== undefined) params['users[0][phone1]'] = user.phone1;
+
+    const result = await this.makeRequest<any>(params);
+    if (!result.success) return result;
+
+    const createdArray = Array.isArray(result.data) ? result.data : [];
+    return {
+      success: true,
+      data: createdArray[0] || null
+    };
+  }
+
+  /**
+   * Enroll one user into a course with a role (student role by default)
+   */
+  async enrollUser(courseId: number, userId: number, roleId: number = 5): Promise<ApiResponse<any>> {
+    return this.makeRequest<any>({
+      wsfunction: 'enrol_manual_enrol_users',
+      'enrolments[0][roleid]': roleId.toString(),
+      'enrolments[0][userid]': userId.toString(),
+      'enrolments[0][courseid]': courseId.toString()
+    });
+  }
+
+  /**
    * Get user grades for a specific course
    */
   async getUserGrades(courseId: number, userId: number): Promise<ApiResponse<any>> {

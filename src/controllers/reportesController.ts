@@ -12,6 +12,7 @@ interface ReporteAvanceRow {
   email: string;
   fechaInicio: string;
   fechaFinal: string;
+  ultimoAcceso: string;
   notaFinal: number | null;
   notaDiagnostica: number | null;
   porcentajeAvance: number | null;
@@ -196,7 +197,7 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
 
     const termino = ins.termino ? parseDateOnly(ins.termino) : null;
     const cursoFinalizado = termino ? termino.getTime() <= today.getTime() : false;
-    const aprobado = notaFinalNum >= 5;
+    const aprobado = notaFinalNum >= 6;
 
     let estadoCurso = '0';
     let observacion = '';
@@ -312,6 +313,7 @@ export class ReportesController {
           email: String((p as any).mail || ''),
           fechaInicio: String((ins as any).inicio || ''),
           fechaFinal: String((ins as any).termino || ''),
+          ultimoAcceso: String((grade as any)?.UltimoAcceso || ''),
           notaFinal: grade?.NotaFinal ?? null,
           notaDiagnostica: grade?.NotaDiagnostica ?? null,
           porcentajeAvance: grade?.PorcentajeAvance ?? null,
@@ -347,11 +349,36 @@ export class ReportesController {
   }
 
   async postEnviarVimica(req: Request, res: Response): Promise<void> {
+    let payloadForError: VimicaPayload | null = null;
+
+    const registrarErrorApi = async (payload: VimicaPayload, statusCode: number, details?: any): Promise<void> => {
+      try {
+        const vimicaCol = await getVimicaCollection();
+        const now = new Date();
+        await vimicaCol.insertOne({
+          datosEnviados: payload,
+          Id: now.getTime(),
+          Fecha: now.toISOString(),
+          CantidadRegistros: null,
+          RegistrosCargados: null,
+          RegistrosRechazados: null,
+          RegistrosLeidos: null,
+          apiErrorCode: statusCode,
+          apiErrorMessage: `Upstream error (${statusCode})`,
+          apiErrorDetails: details ?? null,
+        });
+      } catch (insertErr) {
+        console.error('No se pudo guardar historial de error VMICA', insertErr);
+      }
+    };
+
     try {
       const hasBody = req.body && Object.keys(req.body).length > 0;
       const rawPayload = (hasBody ? req.body : await buildVimicaPayload()) as VimicaPayload;
       const payload = normalizeVimicaPayload(rawPayload);
-      console.log("Enviando reporte Vimica: ",  payload);
+      payloadForError = payload;
+      console.log('Enviando reporte Vimica: ', payload);
+
       const response = await axios.post(VIMICA_ENDPOINT, payload, {
         headers: { 'Content-Type': 'application/json' },
         maxBodyLength: Infinity,
@@ -359,12 +386,13 @@ export class ReportesController {
       });
 
       if (response.status < 200 || response.status >= 300) {
+        await registrarErrorApi(payload, response.status, response.data);
         res.status(response.status).json({
           success: false,
           error: {
             message: `Upstream error (${response.status})`,
-            details: response.data
-          }
+            details: response.data,
+          },
         });
         return;
       }
@@ -389,11 +417,17 @@ export class ReportesController {
 
       res.json({ success: true, data });
     } catch (error: any) {
-      const status = axios.isAxiosError(error) ? (error.response?.status || 502) : 502;
-      const message = axios.isAxiosError(error)
+      const isAxios = axios.isAxiosError(error);
+      const status = isAxios ? (error.response?.status || 502) : 502;
+      const message = isAxios
         ? (error.response?.data?.message || error.message)
         : (error?.message || 'Error enviando reporte Vimica');
+
+      if (isAxios && payloadForError) {
+        await registrarErrorApi(payloadForError, status, error.response?.data);
+      }
+
       res.status(status).json({ success: false, error: { message } });
     }
-}
+  }
 }

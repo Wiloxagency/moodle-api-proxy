@@ -60,6 +60,110 @@ function mapExcelRow(row: Record<string, any>): Participante | null {
   };
 }
 
+
+const normalizeRutKey = (rut: string): string => rut.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const normalizeText = (v: unknown): string => (v ?? '').toString().trim();
+
+const isValidEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const buildPlaceholderEmail = (rutKey: string): string => {
+  const safe = rutKey.replace(/[^a-z0-9]/g, '') || `${Date.now()}`;
+  return `alumno.${safe}@example.com`;
+};
+
+const buildTemporaryPassword = (): string => {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `Tmp#${random}Aa1!`;
+};
+
+
+const sanitizeMoodleUsername = (value: string): string => value.toLowerCase().replace(/[^a-z0-9._@-]/g, '');
+
+const buildMoodleUsername = (rutRaw: string, rutKey: string): string => {
+  const base = sanitizeMoodleUsername(rutKey || rutRaw);
+  const fallback = sanitizeMoodleUsername(`alumno_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`);
+  const candidate = (base.length >= 3 ? base : (fallback || 'alumno')).slice(0, 100);
+  return (/^[a-z]/.test(candidate) ? candidate : `u_${candidate}`).slice(0, 100);
+};
+
+const buildUniqueMoodleUsername = (baseUsername: string): string => {
+  const safeBase = sanitizeMoodleUsername(baseUsername) || 'alumno';
+  const prefixed = /^[a-z]/.test(safeBase) ? safeBase : `u_${safeBase}`;
+  const suffix = Math.random().toString(36).slice(2, 6);
+  return `${prefixed.slice(0, 95)}_${suffix}`;
+};
+
+const buildMoodleIdnumber = (rutRaw: string, rutKey: string): string => {
+  const raw = normalizeText(rutRaw);
+  if (rutKey) return rutKey;
+  if (raw) return raw;
+  return `tmp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+};
+
+const isUsernameConflictError = (message: string): boolean => {
+  const m = message.toLowerCase();
+  return m.includes('username') && (m.includes('exist') || m.includes('already') || m.includes('taken') || m.includes('ya existe'));
+};
+
+
+const isInvalidParameterError = (message: string): boolean => {
+  const m = message.toLowerCase();
+  return m.includes('invalid parameter') || m.includes('parámetro no válido') || m.includes('valor de parámetro no válido');
+};
+
+const extractMoodleErrorDetail = (error: any): string => {
+  const msg = normalizeText(error?.message) || 'sin detalle';
+  const debug = normalizeText(error?.details?.debuginfo);
+  return debug ? `${msg} - ${debug}` : msg;
+};
+
+const parseNumeroInscripcion = (value: string | number): { raw: string; num: number } | null => {
+  const raw = value?.toString().trim();
+  if (!raw) return null;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return null;
+  return { raw, num };
+};
+
+const isAlreadyEnrolledError = (message: string): boolean => {
+  const m = message.toLowerCase();
+  return m.includes('already') || m.includes('ya') || m.includes('enrol') || m.includes('matric');
+};
+
+const toErrorMessage = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'message' in value) return String((value as { message?: unknown }).message || 'Error');
+  return 'Error';
+};
+
+async function resolveMoodleCourseId(moodle: MoodleService, providedCode: string): Promise<number | null> {
+  let courseId: number | null = null;
+
+  const digits = providedCode.replace(/[^0-9]/g, '');
+  if (digits) {
+    const n = Number(digits);
+    if (!Number.isNaN(n) && n > 0) {
+      courseId = n;
+    }
+  }
+
+  if (!courseId) {
+    let courseResp = await moodle.getCoursesByField('shortname', providedCode);
+    if (!courseResp.success || !courseResp.data || (courseResp.data as any).courses?.length === 0) {
+      courseResp = await moodle.getCoursesByField('idnumber', providedCode);
+    }
+
+    const courses = (courseResp && (courseResp as any).data && (courseResp as any).data.courses) || [];
+    if (courses.length > 0) {
+      const exact = courses.find((c: any) => c.shortname === providedCode || c.idnumber === providedCode) || courses[0];
+      courseId = Number(exact.id);
+    }
+  }
+
+  return courseId && Number.isFinite(courseId) ? courseId : null;
+}
+
 export class ParticipantesController {
   // GET /api/participantes?numeroInscripcion=INS-0001
   async list(req: Request, res: Response) {
@@ -176,50 +280,37 @@ export class ParticipantesController {
 
   // POST /api/participantes/import/moodle { numeroInscripcion }
   async importFromMoodle(req: Request, res: Response) {
-    const { numeroInscripcion } = req.body as { numeroInscripcion?: string };
-    if (!numeroInscripcion) {
+    const { numeroInscripcion } = req.body as { numeroInscripcion?: string | number };
+    if (numeroInscripcion === undefined || numeroInscripcion === null || `${numeroInscripcion}`.trim() === '') {
       return res.status(400).json({ success: false, error: { message: 'numeroInscripcion is required' } });
     }
 
+    const parsed = parseNumeroInscripcion(numeroInscripcion);
+    if (!parsed) {
+      return res.status(400).json({ success: false, error: { message: 'numeroInscripcion inválido' } });
+    }
+
     const insCol = await getInscripcionesCollection();
-    const ins = await insCol.findOne({ numeroInscripcion } as any);
+    const ins = await insCol.findOne({
+      $or: [
+        { numeroInscripcion: parsed.num },
+        { numeroInscripcion: parsed.raw }
+      ]
+    } as any);
     if (!ins) {
       return res.status(404).json({ success: false, error: { message: 'Inscripción no encontrada' } });
     }
 
     // Determinar el identificador del curso en Moodle
-    const idMoodleRaw = (ins as any).idMoodle as string | undefined;
-    const codigoCursoRaw = (ins as any).codigoCurso as string | undefined;
-    const providedCode = (idMoodleRaw && idMoodleRaw.trim()) || (codigoCursoRaw && codigoCursoRaw.trim()) || '';
+    const idMoodleRaw = normalizeText((ins as any).idMoodle);
+    const codigoCursoRaw = normalizeText((ins as any).codigoCurso);
+    const providedCode = idMoodleRaw || codigoCursoRaw;
     if (!providedCode) {
       return res.status(400).json({ success: false, error: { message: 'La inscripción no tiene ID Moodle ni Código del Curso' } });
     }
 
     const moodle = new MoodleService();
-
-    // Resolver courseId: si es numérico directo, usarlo; si no, resolver por shortname o idnumber
-    let courseId: number | null = null;
-    const digits = providedCode.replace(/[^0-9]/g, '');
-    if (digits) {
-      const n = Number(digits);
-      if (!Number.isNaN(n) && n > 0) courseId = n;
-    }
-
-    if (!courseId) {
-      // Intentar shortname
-      let courseResp = await moodle.getCoursesByField('shortname', providedCode);
-      if (!courseResp.success || !courseResp.data || (courseResp.data as any).courses?.length === 0) {
-        // Intentar idnumber
-        courseResp = await moodle.getCoursesByField('idnumber', providedCode);
-      }
-      const courses = (courseResp && (courseResp as any).data && (courseResp as any).data.courses) || [];
-      if (courses.length > 0) {
-        // Elegir el primero que coincida exactamente por shortname o idnumber; si no, el primero
-        const exact = courses.find((c: any) => c.shortname === providedCode || c.idnumber === providedCode) || courses[0];
-        courseId = exact.id;
-      }
-    }
-
+    const courseId = await resolveMoodleCourseId(moodle, providedCode);
     if (!courseId) {
       return res.status(404).json({ success: false, error: { message: 'No se encontró un curso en Moodle para el código proporcionado' } });
     }
@@ -241,36 +332,425 @@ export class ParticipantesController {
 
     // Map Moodle users a Participante
     const toRut = (u: any): string => {
-      const idnumber = (u.idnumber ?? '').toString().trim();
-      const username = (u.username ?? '').toString().trim();
+      const idnumber = normalizeText(u.idnumber);
+      const username = normalizeText(u.username);
       return idnumber || username || String(u.id);
     };
     const toTelefono = (u: any): string | undefined => {
-      const t = (u.phone1 || u.phone || u.phone2 || '').toString().trim();
+      const t = normalizeText(u.phone1 || u.phone || u.phone2 || '');
       return t || undefined;
     };
-    const mapped: Participante[] = users.map(u => ({
-      numeroInscripcion: Number(numeroInscripcion),
-      nombres: (u.firstname ?? '').toString(),
-      apellidos: (u.lastname ?? '').toString(),
+
+    const mapped: Participante[] = users.map((u: any) => ({
+      numeroInscripcion: parsed.num,
+      nombres: normalizeText(u.firstname),
+      apellidos: normalizeText(u.lastname),
       rut: toRut(u),
-      mail: (u.email ?? '').toString(),
+      mail: normalizeText(u.email),
       telefono: toTelefono(u),
     }));
 
     const col = await getParticipantesCollection();
-    let inserted = 0, updated = 0, skipped = 0;
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+
     for (const r of mapped) {
-      if (!r.rut) { skipped++; continue; }
+      if (!r.rut) {
+        skipped++;
+        continue;
+      }
       const resUp = await col.updateOne(
         { numeroInscripcion: r.numeroInscripcion, rut: r.rut },
         { $set: r },
         { upsert: true }
       );
-      if (resUp.upsertedCount) inserted++; else if (resUp.modifiedCount) updated++; else skipped++;
+      if (resUp.upsertedCount) inserted++;
+      else if (resUp.modifiedCount) updated++;
+      else skipped++;
     }
-    const total = await col.countDocuments({ numeroInscripcion });
+
+    const total = await col.countDocuments({ numeroInscripcion: parsed.num });
     return res.json({ success: true, data: { inserted, updated, skipped, total } });
+  }
+
+  // POST /api/participantes/enroll/moodle { numeroInscripcion }
+  async enrollInMoodle(req: Request, res: Response) {
+    const { numeroInscripcion } = req.body as { numeroInscripcion?: string | number };
+    if (numeroInscripcion === undefined || numeroInscripcion === null || `${numeroInscripcion}`.trim() === '') {
+      return res.status(400).json({ success: false, error: { message: 'numeroInscripcion is required' } });
+    }
+
+    const parsed = parseNumeroInscripcion(numeroInscripcion);
+    if (!parsed) {
+      return res.status(400).json({ success: false, error: { message: 'numeroInscripcion inválido' } });
+    }
+
+    const insCol = await getInscripcionesCollection();
+    const ins = await insCol.findOne({
+      $or: [
+        { numeroInscripcion: parsed.num },
+        { numeroInscripcion: parsed.raw }
+      ]
+    } as any);
+
+    if (!ins) {
+      return res.status(404).json({ success: false, error: { message: 'Inscripción no encontrada' } });
+    }
+
+    const idMoodleRaw = normalizeText((ins as any).idMoodle);
+    const codigoCursoRaw = normalizeText((ins as any).codigoCurso);
+    const providedCode = idMoodleRaw || codigoCursoRaw;
+
+    if (!providedCode) {
+      return res.status(400).json({ success: false, error: { message: 'La inscripción no tiene ID Moodle ni Código del Curso' } });
+    }
+
+    const moodle = new MoodleService();
+    const courseId = await resolveMoodleCourseId(moodle, providedCode);
+
+    if (!courseId) {
+      return res.status(404).json({ success: false, error: { message: 'No se encontró un curso en Moodle para el código proporcionado' } });
+    }
+
+    const participantesCol = await getParticipantesCollection();
+    const rawParticipantes = await participantesCol.find({
+      $or: [
+        { numeroInscripcion: parsed.num },
+        { numeroInscripcion: parsed.raw }
+      ]
+    } as any).toArray();
+
+    if (rawParticipantes.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          processed: 0,
+          total: 0,
+          duplicateRows: 0,
+          skipped: 0,
+          createdUsers: 0,
+          updatedUsers: 0,
+          newlyEnrolled: 0,
+          alreadyEnrolled: 0,
+          failed: 0,
+          message: 'No hay participantes para inscribir en Moodle'
+        }
+      });
+    }
+
+    const uniqueByRut = new Map<string, { rutKey: string; participante: any }>();
+    let skippedNoRut = 0;
+    for (const p of rawParticipantes) {
+      const rutRaw = normalizeText((p as any).rut);
+      if (!rutRaw) {
+        skippedNoRut++;
+        continue;
+      }
+      const rutKey = normalizeRutKey(rutRaw);
+      const dedupeKey = rutKey || `raw:${rutRaw.toLowerCase()}`;
+      uniqueByRut.set(dedupeKey, { rutKey, participante: p });
+    }
+
+    const uniqueParticipantes = Array.from(uniqueByRut.values());
+
+    const duplicateRows = Math.max(0, rawParticipantes.length - uniqueParticipantes.length - skippedNoRut);
+
+    if (uniqueParticipantes.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          processed: 0,
+          total: rawParticipantes.length,
+          duplicateRows,
+          skipped: skippedNoRut,
+          createdUsers: 0,
+          updatedUsers: 0,
+          newlyEnrolled: 0,
+          alreadyEnrolled: 0,
+          failed: 0,
+          message: 'No hay participantes con RUT válido para inscribir en Moodle'
+        }
+      });
+    }
+
+    const enrolledUsersResp = await moodle.getEnrolledUsers(courseId);
+    if (!enrolledUsersResp.success) {
+      const msg = enrolledUsersResp.error?.message || 'Error consultando inscritos del curso en Moodle';
+      const lower = msg.toLowerCase();
+      if (lower.includes('course') || lower.includes('curso')) {
+        return res.status(404).json({ success: false, error: { message: 'Curso no encontrado en Moodle' } });
+      }
+      return res.status(502).json({ success: false, error: { message: msg } });
+    }
+
+    const knownUsersByRutKey = new Map<string, any>();
+    const enrolledUserIds = new Set<number>();
+
+    const rememberUser = (u: any): void => {
+      if (!u || typeof u !== 'object') return;
+
+      const idnumber = normalizeText(u.idnumber);
+      if (idnumber) {
+        knownUsersByRutKey.set(normalizeRutKey(idnumber), u);
+      }
+
+      const username = normalizeText(u.username);
+      if (username) {
+        const key = normalizeRutKey(username);
+        if (!knownUsersByRutKey.has(key)) {
+          knownUsersByRutKey.set(key, u);
+        }
+      }
+    };
+
+    const initiallyEnrolled = Array.isArray(enrolledUsersResp.data) ? enrolledUsersResp.data : [];
+    for (const u of initiallyEnrolled) {
+      rememberUser(u);
+      const userId = Number((u as any).id);
+      if (Number.isFinite(userId) && userId > 0) {
+        enrolledUserIds.add(userId);
+      }
+    }
+
+    const pickExactByField = (users: any[] | undefined, field: 'idnumber' | 'username', expectedRutKey: string): any | null => {
+      if (!Array.isArray(users) || users.length === 0) return null;
+      const exact = users.find((u: any) => normalizeRutKey(normalizeText((u as any)[field])) === expectedRutKey);
+      return exact || null;
+    };
+
+    const buildLookupValues = (rutRaw: string, rutKey: string, extraLookupValues: string[] = []): string[] => {
+      const values = new Set<string>();
+      const raw = normalizeText(rutRaw);
+      const rawKey = normalizeRutKey(raw);
+
+      if (raw) values.add(raw);
+      if (rutKey) values.add(rutKey);
+      if (rawKey) values.add(rawKey);
+
+      for (const value of extraLookupValues) {
+        const normalized = normalizeText(value);
+        if (normalized) values.add(normalized);
+      }
+
+      return Array.from(values);
+    };
+
+    const findUserByRut = async (
+      rutRaw: string,
+      rutKey: string,
+      extraLookupValues: string[] = [],
+      emailCandidate?: string
+    ): Promise<any | null> => {
+      const cacheKeys = new Set<string>();
+      if (rutKey) cacheKeys.add(rutKey);
+      const rawKey = normalizeRutKey(rutRaw);
+      if (rawKey) cacheKeys.add(rawKey);
+
+      for (const key of cacheKeys) {
+        const cached = knownUsersByRutKey.get(key);
+        if (cached) return cached;
+      }
+
+      const lookupValues = buildLookupValues(rutRaw, rutKey, extraLookupValues);
+
+      for (const value of lookupValues) {
+        const expectedKey = normalizeRutKey(value);
+        if (!expectedKey) continue;
+
+        const byIdnumber = await moodle.getUsersByField('idnumber', value);
+        if (byIdnumber.success) {
+          const found = pickExactByField(byIdnumber.data as any[], 'idnumber', expectedKey);
+          if (found) {
+            rememberUser(found);
+            return found;
+          }
+        }
+
+        const byUsername = await moodle.getUsersByField('username', value);
+        if (byUsername.success) {
+          const found = pickExactByField(byUsername.data as any[], 'username', expectedKey);
+          if (found) {
+            rememberUser(found);
+            return found;
+          }
+        }
+      }
+
+      const normalizedEmail = normalizeText(emailCandidate || '').toLowerCase();
+      if (normalizedEmail && isValidEmail(normalizedEmail)) {
+        const byEmail = await moodle.getUsersByField('email', normalizedEmail);
+        if (byEmail.success && Array.isArray(byEmail.data) && byEmail.data.length > 0) {
+          const exact = (byEmail.data as any[]).find((u: any) => normalizeText(u.email).toLowerCase() === normalizedEmail) || (byEmail.data as any[])[0];
+          if (exact) {
+            rememberUser(exact);
+            return exact;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    let createdUsers = 0;
+    let updatedUsers = 0;
+    let newlyEnrolled = 0;
+    let alreadyEnrolled = 0;
+    let failed = 0;
+    const warnings: string[] = [];
+
+    for (const { rutKey, participante } of uniqueParticipantes) {
+      const rutRaw = normalizeText((participante as any).rut);
+      if (!rutRaw) {
+        skippedNoRut++;
+        continue;
+      }
+
+      try {
+        const mailRaw = normalizeText((participante as any).mail).toLowerCase();
+        const validEmail = isValidEmail(mailRaw) ? mailRaw : '';
+
+        let moodleUser = await findUserByRut(rutRaw, rutKey, [], validEmail);
+        let wasCreated = false;
+
+        const moodleIdnumber = buildMoodleIdnumber(rutRaw, rutKey);
+
+        if (!moodleUser) {
+          const baseUsername = buildMoodleUsername(rutRaw, rutKey);
+          const firstname = normalizeText((participante as any).nombres) || 'SinNombre';
+          const lastname = normalizeText((participante as any).apellidos) || 'SinApellido';
+          const email = validEmail || buildPlaceholderEmail(rutKey || 'sinrut');
+
+          let createResp = await moodle.createUser({
+            username: baseUsername,
+            firstname,
+            lastname,
+            email,
+            password: buildTemporaryPassword(),
+            idnumber: moodleIdnumber
+          });
+
+          if ((!createResp.success || !createResp.data || !Number.isFinite(Number((createResp.data as any).id))) && isUsernameConflictError(createResp.error?.message || '')) {
+            const retryUsername = buildUniqueMoodleUsername(baseUsername);
+            createResp = await moodle.createUser({
+              username: retryUsername,
+              firstname,
+              lastname,
+              email,
+              password: buildTemporaryPassword(),
+              idnumber: moodleIdnumber
+            });
+          }
+
+          if ((!createResp.success || !createResp.data || !Number.isFinite(Number((createResp.data as any).id))) && isInvalidParameterError(createResp.error?.message || '')) {
+            const strictUsername = buildUniqueMoodleUsername('alumno');
+            const strictEmail = isValidEmail(mailRaw) ? mailRaw : `alumno.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}@example.com`;
+            createResp = await moodle.createUser({
+              username: strictUsername,
+              firstname,
+              lastname,
+              email: strictEmail,
+              password: buildTemporaryPassword()
+            });
+          }
+
+          if (!createResp.success || !createResp.data || !Number.isFinite(Number((createResp.data as any).id))) {
+            // Reintento de lookup por idnumber/username por si el usuario ya existía
+            moodleUser = await findUserByRut(rutRaw, rutKey, [baseUsername, moodleIdnumber], validEmail);
+            if (!moodleUser) {
+              failed++;
+              warnings.push(`RUT ${rutRaw}: no fue posible crear/ubicar usuario en Moodle (${extractMoodleErrorDetail(createResp.error)})`);
+              continue;
+            }
+          } else {
+            moodleUser = createResp.data;
+            wasCreated = true;
+            createdUsers++;
+            rememberUser(moodleUser);
+          }
+        }
+
+        const userId = Number((moodleUser as any).id);
+        if (!Number.isFinite(userId) || userId <= 0) {
+          failed++;
+          warnings.push(`RUT ${rutRaw}: usuario Moodle inválido`);
+          continue;
+        }
+
+        if (!wasCreated) {
+          const firstName = normalizeText((participante as any).nombres);
+          const lastName = normalizeText((participante as any).apellidos);
+          const phone = normalizeText((participante as any).telefono);
+
+          const updatePayload: {
+            id: number;
+            idnumber: string;
+            firstname?: string;
+            lastname?: string;
+            email?: string;
+            phone1?: string;
+          } = {
+            id: userId,
+            idnumber: moodleIdnumber
+          };
+
+          if (firstName) updatePayload.firstname = firstName;
+          if (lastName) updatePayload.lastname = lastName;
+          if (validEmail) updatePayload.email = validEmail;
+          if (phone) updatePayload.phone1 = phone;
+
+          const updateResp = await moodle.updateUser(updatePayload);
+          if (updateResp.success) {
+            updatedUsers++;
+          } else {
+            warnings.push(`RUT ${rutRaw}: no se pudieron actualizar datos (${updateResp.error?.message || 'sin detalle'})`);
+          }
+        }
+
+        if (enrolledUserIds.has(userId)) {
+          alreadyEnrolled++;
+          continue;
+        }
+
+        const enrollResp = await moodle.enrollUser(courseId, userId, 5);
+        if (!enrollResp.success) {
+          const enrollMsg = enrollResp.error?.message || 'Error inscribiendo en Moodle';
+          if (isAlreadyEnrolledError(enrollMsg)) {
+            alreadyEnrolled++;
+            enrolledUserIds.add(userId);
+            continue;
+          }
+
+          failed++;
+          warnings.push(`RUT ${rutRaw}: ${enrollMsg}`);
+          continue;
+        }
+
+        enrolledUserIds.add(userId);
+        newlyEnrolled++;
+      } catch (error: unknown) {
+        failed++;
+        warnings.push(`RUT ${rutRaw}: ${toErrorMessage(error)}`);
+      }
+    }
+
+    const processed = uniqueParticipantes.length;
+    return res.json({
+      success: true,
+      data: {
+        processed,
+        total: rawParticipantes.length,
+        duplicateRows,
+        skipped: skippedNoRut,
+        createdUsers,
+        updatedUsers,
+        newlyEnrolled,
+        alreadyEnrolled,
+        failed,
+        warnings: warnings.length > 0 ? warnings : undefined,
+        message: `Inscripción en Moodle finalizada: procesados ${processed}, nuevos inscritos ${newlyEnrolled}, ya inscritos ${alreadyEnrolled}, usuarios creados ${createdUsers}, perfiles actualizados ${updatedUsers}, omitidos ${skippedNoRut}, errores ${failed}.`
+      }
+    });
   }
 
 

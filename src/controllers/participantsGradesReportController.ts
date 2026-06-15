@@ -143,7 +143,7 @@ export class ParticipantsGradesReportController {
       return Number.isFinite(n) ? n : null;
     };
 
-    const output: Array<{ numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null; NotaDiagnostica: number | null }> = [];
+    const output: Array<{ numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null; NotaDiagnostica: number | null; UltimoAcceso: string | null }> = [];
 
     for (const p of participantes) {
       const rut = (p as any).rut || '';
@@ -151,6 +151,7 @@ export class ParticipantsGradesReportController {
       let asistencia: number | null = null;
       let notaFinal: number | null = null;
       let notaDiagnostica: number | null = null;
+      let ultimoAcceso: string | null = null;
       try {
         // @ts-ignore - reuse internal method
         const progress = await (this.finalCtrl as any).processSingleGrade(rut, courseId, rut);
@@ -159,6 +160,8 @@ export class ParticipantsGradesReportController {
           asistencia = toNum((progress as any).PorcentajeAsistenciaAlumno);
           notaFinal = toNum((progress as any).NotaFinal);
           notaDiagnostica = toNum((progress as any).NotaDiagnostica);
+          const ultimoAccesoRaw = String((progress as any).UltimoAcceso || '').trim();
+          ultimoAcceso = ultimoAccesoRaw || null;
         }
       } catch {}
 
@@ -170,6 +173,7 @@ export class ParticipantsGradesReportController {
         PorcentajeAsistenciaAlumno: asistencia,
         NotaFinal: notaFinal,
         NotaDiagnostica: notaDiagnostica,
+        UltimoAcceso: ultimoAcceso,
       };
 
       // Persistir por participante (upsert)
