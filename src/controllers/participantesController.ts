@@ -215,7 +215,9 @@ export class ParticipantesController {
   // PUT /api/participantes/:id
   async update(req: Request, res: Response) {
     const { id } = req.params as { id: string };
-    const payload = req.body as Partial<Participante>;
+    // Excluir _id del payload: es inmutable y MongoDB lanza error si se intenta
+    // modificar dentro de un $set (el frontend envía el objeto completo, con _id).
+    const { _id, ...payload } = req.body as Partial<Participante> & { _id?: string };
     const col = await getParticipantesCollection();
     const toSet: any = { ...payload };
     if (payload.rut) {
