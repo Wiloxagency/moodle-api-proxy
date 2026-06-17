@@ -43,19 +43,12 @@ interface SimpleGradeItem {
   graderaw?: number | null;
 }
 
-interface FirstModuleContext {
-  moduleKey: string;
-  moduleName: string;
-}
-
 export class StudentFinalGradeController {
   private moodleService: MoodleService;
-  private firstModuleContextCache: Map<number, { expiresAt: number; context: FirstModuleContext | null }>;
   private courseLastAccessCache: Map<number, { expiresAt: number; byUserId: Map<number, string> }>;
 
   constructor() {
     this.moodleService = new MoodleService();
-    this.firstModuleContextCache = new Map();
     this.courseLastAccessCache = new Map();
   }
 
@@ -208,8 +201,9 @@ export class StudentFinalGradeController {
       return null;
     }
 
-    // 5) Find "Evaluación/Prueba Diagnóstica" in first module only (accent/case tolerant)
-    const diagnosticaMatch = await this.findDiagnosticaInFirstModule(items, courseIdNum);
+    // 5) Find "Evaluación/Prueba Diagnóstica" anywhere in the course (accent/case tolerant,
+    //    sin importar la posición de la actividad dentro del curso)
+    const diagnosticaMatch = this.findDiagnosticaActivity(items);
 
     // Normalize graderaw to a number when possible
     const gradeVal: number | null = typeof match.graderaw === 'number'
@@ -410,85 +404,26 @@ export class StudentFinalGradeController {
 
   private isDiagnosticActivityName(name?: string): boolean {
     if (!name) return false;
-    const normalized = this.normalize(name);
-    const hasDiagnosticKeyword = normalized.includes('diagnostic');
-    const hasTypeKeyword = normalized.includes('evaluacion') || normalized.includes('prueba');
-    return hasDiagnosticKeyword && hasTypeKeyword;
+    // El criterio es que el nombre esté compuesto por la combinación de
+    // una palabra de tipo ("Evaluación" | "Prueba") y una palabra de
+    // diagnóstico ("Diagnóstica" | "Diagnóstico"), en cualquier orden,
+    // sin importar mayúsculas/minúsculas ni acentos, y sin importar en qué
+    // parte del curso esté ubicada la actividad.
+    // normalize() ya pasa a minúsculas y elimina los acentos.
+    const words = this.normalize(name).split(/[^a-z]+/).filter(Boolean);
+    const hasTypeWord = words.some((w) => w === 'evaluacion' || w === 'prueba');
+    const hasDiagnosticWord = words.some((w) => w === 'diagnostica' || w === 'diagnostico');
+    return hasTypeWord && hasDiagnosticWord;
   }
 
-  private buildModuleKey(modname?: string, instance?: number | null): string {
-    const mod = String(modname || '').trim().toLowerCase();
-    const inst = Number(instance);
-    if (!mod || !Number.isFinite(inst)) return '';
-    return `${mod}::${inst}`;
-  }
-
-  private extractFirstModuleContext(rawContents: any): FirstModuleContext | null {
-    if (!Array.isArray(rawContents)) return null;
-
-    const firstSectionWithModules = rawContents
-      .filter((section: any) => Array.isArray(section?.modules) && section.modules.length > 0)
-      .sort((a: any, b: any) => Number(a?.section ?? 0) - Number(b?.section ?? 0))[0];
-
-    const firstModule = firstSectionWithModules?.modules?.[0];
-    if (!firstModule) return null;
-
-    const moduleName = this.normalize(String(firstModule?.name || ''));
-    const moduleKey = this.buildModuleKey(firstModule?.modname, firstModule?.instance);
-
-    if (!moduleName && !moduleKey) return null;
-    return { moduleKey, moduleName };
-  }
-
-  private async getFirstModuleContext(courseIdNum: number): Promise<FirstModuleContext | null> {
-    const cacheTtlMs = 5 * 60 * 1000;
-    const now = Date.now();
-    const cached = this.firstModuleContextCache.get(courseIdNum);
-    if (cached && cached.expiresAt > now) {
-      return cached.context;
-    }
-
-    try {
-      const contentsResult = await this.moodleService.getCourseGradeItems(courseIdNum);
-      const context = contentsResult.success ? this.extractFirstModuleContext(contentsResult.data) : null;
-      this.firstModuleContextCache.set(courseIdNum, { expiresAt: now + cacheTtlMs, context });
-      return context;
-    } catch {
-      this.firstModuleContextCache.set(courseIdNum, { expiresAt: now + cacheTtlMs, context: null });
-      return null;
-    }
-  }
-
-  private async findDiagnosticaInFirstModule(items: SimpleGradeItem[], courseIdNum: number): Promise<SimpleGradeItem | undefined> {
+  private findDiagnosticaActivity(items: SimpleGradeItem[]): SimpleGradeItem | undefined {
     const modItems = items.filter((it) => (it.itemtype || '').toLowerCase() === 'mod');
     if (!modItems.length) return undefined;
 
-    const diagnosticaCandidates = modItems.filter((it) => this.isDiagnosticActivityName(it.itemname));
-    if (!diagnosticaCandidates.length) return undefined;
-
-    const firstModuleContext = await this.getFirstModuleContext(courseIdNum);
-    if (firstModuleContext) {
-      const byContext = diagnosticaCandidates.find((candidate) => {
-        const candidateKey = this.buildModuleKey(candidate.itemmodule, candidate.iteminstance);
-        if (firstModuleContext.moduleKey && candidateKey && candidateKey === firstModuleContext.moduleKey) {
-          return true;
-        }
-
-        const normalizedItemName = this.normalize(candidate.itemname || '');
-        const moduleName = firstModuleContext.moduleName || '';
-        if (!normalizedItemName || !moduleName) return false;
-        return normalizedItemName === moduleName || normalizedItemName.includes(moduleName) || moduleName.includes(normalizedItemName);
-      });
-
-      if (byContext) return byContext;
-      return undefined;
-    }
-
-    // Fallback when course contents endpoint is not available for this token:
-    // infer "primer módulo" from the first graded module item order.
-    const firstModItem = modItems[0];
-    if (!firstModItem) return undefined;
-    return this.isDiagnosticActivityName(firstModItem.itemname) ? firstModItem : undefined;
+    // Devuelve la primera actividad de tipo módulo cuyo nombre cumpla el
+    // criterio de evaluación diagnóstica, sin importar su posición dentro
+    // del curso (ya no se exige que esté en el primer módulo).
+    return modItems.find((it) => this.isDiagnosticActivityName(it.itemname));
   }
 
   private calculateQuizProgress(items: SimpleGradeItem[]): number {
