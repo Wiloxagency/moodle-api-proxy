@@ -141,7 +141,11 @@ async function buildCache(): Promise<DashboardCacheDoc> {
       const grade = rutKey ? gradesMap?.get(rutKey) : undefined;
       if (grade) {
         const avance = toNum((grade as any).PorcentajeAvance);
-        if (avance === null || avance === 0) {
+        // Solo contar como "0% de avance" cuando el avance es un 0 real.
+        // avance === null significa "sin datos" (p.ej. el curso no tiene una
+        // actividad "Evaluación Final", el alumno no se resolvió en Moodle, o el
+        // WS no devolvió notas). Contar esos null como 0% inflaba el indicador.
+        if (avance === 0) {
           zeroes[category] += 1;
         }
       }
