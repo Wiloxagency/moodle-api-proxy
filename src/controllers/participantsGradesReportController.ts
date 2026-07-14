@@ -105,12 +105,29 @@ export class ParticipantsGradesReportController {
   }
 
   // GET /api/participantes/:numeroInscripcion/grades-numeric
-  // Devuelve y persiste registros normalizados (valores numéricos) por participante
+  // Devuelve y persiste registros normalizados (valores numéricos) por participante.
+  //
+  // Soporta procesamiento por lotes para evitar timeouts (504) en cursos con
+  // muchos alumnos. Parámetros de query opcionales:
+  //   - offset: índice del primer participante a procesar (default 0)
+  //   - limit:  cantidad máxima de participantes a procesar en esta llamada
+  //             (default: todos). El frontend/cron debe iterar mientras hasMore=true.
+  // Dentro del lote los participantes se procesan en paralelo con un límite de
+  // concurrencia para acelerar sin saturar los WebServices de Moodle.
   async getNumericReport(req: Request, res: Response) {
     const { numeroInscripcion } = req.params as { numeroInscripcion?: string };
     if (!numeroInscripcion) {
       return res.status(400).json({ success: false, error: { message: 'numeroInscripcion is required' } });
     }
+
+    // --- Parseo de paginación (offset/limit) ---
+    const { offset: offsetRaw, limit: limitRaw } = req.query as { offset?: string; limit?: string };
+    const offset = Math.max(0, Number.isFinite(Number(offsetRaw)) ? parseInt(String(offsetRaw), 10) || 0 : 0);
+    const limitParsed = parseInt(String(limitRaw), 10);
+    const limit = Number.isFinite(limitParsed) && limitParsed > 0 ? limitParsed : null; // null = sin límite
+
+    // Concurrencia máxima de llamadas a Moodle dentro del lote
+    const CONCURRENCY = 6;
 
     const numeroInscripcionNum = Number(numeroInscripcion);
     const byNumero = Number.isFinite(numeroInscripcionNum)
@@ -132,10 +149,18 @@ export class ParticipantsGradesReportController {
     }
 
     const partCol = await getParticipantesCollection();
-    const participantes = await partCol.find(byNumero).toArray();
+    // Orden estable para que offset/limit sean deterministas entre llamadas
+    const allParticipantes = await partCol.find(byNumero).sort({ _id: 1 }).toArray();
+    const total = allParticipantes.length;
+
+    // Recorte del lote a procesar en esta llamada
+    const end = limit == null ? total : Math.min(total, offset + limit);
+    const participantes = allParticipantes.slice(offset, end);
+    const hasMore = end < total;
 
     const cacheCol = await getGradesReportsCollection();
     const normalizedNumero = Number.isFinite(numeroInscripcionNum) ? numeroInscripcionNum : Number(numeroInscripcion) || numeroInscripcion;
+    const normalizedNumeroValue = typeof normalizedNumero === 'number' ? normalizedNumero : Number(normalizedNumero) || 0;
 
     const toNum = (v: any): number | null => {
       if (v === undefined || v === null || v === '') return null;
@@ -143,9 +168,10 @@ export class ParticipantsGradesReportController {
       return Number.isFinite(n) ? n : null;
     };
 
-    const output: Array<{ numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null; NotaDiagnostica: number | null; UltimoAcceso: string | null }> = [];
+    type NumericDoc = { numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null; NotaDiagnostica: number | null; UltimoAcceso: string | null };
 
-    for (const p of participantes) {
+    // Procesa un único participante: consulta Moodle y persiste el resultado
+    const processParticipant = async (p: any): Promise<NumericDoc> => {
       const rut = (p as any).rut || '';
       let avance: number | null = null;
       let asistencia: number | null = null;
@@ -165,8 +191,8 @@ export class ParticipantsGradesReportController {
         }
       } catch {}
 
-      const doc = {
-        numeroInscripcion: typeof normalizedNumero === 'number' ? normalizedNumero : Number(normalizedNumero) || 0,
+      const doc: NumericDoc = {
+        numeroInscripcion: normalizedNumeroValue,
         IdCurso: courseId,
         RutAlumno: rut,
         PorcentajeAvance: avance,
@@ -182,10 +208,32 @@ export class ParticipantsGradesReportController {
         { $set: doc } as any,
         { upsert: true }
       );
-      output.push(doc);
-    }
+      return doc;
+    };
 
-    return res.json({ success: true, data: output });
+    // Ejecuta processParticipant sobre el lote con concurrencia limitada,
+    // preservando el orden de salida.
+    const output: NumericDoc[] = new Array(participantes.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (true) {
+        const i = cursor++;
+        if (i >= participantes.length) break;
+        output[i] = await processParticipant(participantes[i]);
+      }
+    };
+    const workers = Array.from({ length: Math.min(CONCURRENCY, participantes.length) }, () => worker());
+    await Promise.all(workers);
+
+    return res.json({
+      success: true,
+      data: output,
+      total,
+      offset,
+      limit: limit == null ? total : limit,
+      processed: participantes.length,
+      hasMore,
+    });
   }
 
 }
