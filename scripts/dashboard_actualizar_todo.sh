@@ -24,9 +24,30 @@ trap 'rm -f "$TMP_FILE"' EXIT
 
 had_error=0
 
-# 1) Obtener inscripciones no cerradas
+# 1) Obtener las inscripciones a refrescar
+#
+# Criterio: NO está cerrada  O  su fecha de término sigue vigente.
+#
+# Antes bastaba con `status != cerrada`. El problema es que cerrar es
+# irreversible (nada reabre una inscripción) y la fecha de término se edita a
+# mano: al extender un curso ya cerrado, sus notas dejaban de actualizarse para
+# siempre. El 2026-08-10 eso afectaba a 511 de 700 participantes de cursos
+# vigentes (485 sólo en Datco).
+#
+# Esto sólo cambia QUÉ se refresca. No escribe ningún status, así que la regla
+# de cierre del paso 2 y el envío a VMICA del paso 4 (que filtra por
+# status_vimica, no por status) se comportan exactamente igual que antes.
+HOY="$(date +%F)"
 if ! curl -fsS "$API_BASE/inscripciones" \
-  | jq -r '.data[] | select((.status // "" | ascii_downcase) != "cerrada") | @base64' > "$TMP_FILE"; then
+  | jq -r --arg hoy "$HOY" '
+      .data[]
+      | select(
+          ((.status // "" | tostring | ascii_downcase) != "cerrada")
+          or ((.termino // "" | tostring | .[0:10]) == "")
+          or ((.termino // "" | tostring | .[0:10]) >= $hoy)
+        )
+      | @base64
+    ' > "$TMP_FILE"; then
   echo "[ActualizarTodo] ERROR: no se pudo obtener listado de inscripciones"
   exit 1
 fi
