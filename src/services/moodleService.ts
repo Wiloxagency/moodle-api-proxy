@@ -437,6 +437,43 @@ export class MoodleService {
   }
 
   /**
+   * Cuestionarios de un curso (mod_quiz_get_quizzes_by_courses).
+   *
+   * Útil cuando `core_course_get_contents` no está permitido para el token
+   * (responde `accessexception`) pero sí lo está el WS de mod_quiz.
+   *
+   * Respuesta: { quizzes: [{ id, coursemodule, course, name, ... }] }
+   * Ojo: en esa respuesta `id` es el quizid (instance) y `coursemodule` el cmid.
+   */
+  async getCourseQuizzes(courseId: number): Promise<ApiResponse<any>> {
+    return this.makeRequest<any>({
+      wsfunction: 'mod_quiz_get_quizzes_by_courses',
+      'courseids[0]': courseId.toString()
+    });
+  }
+
+  /**
+   * Mejor nota de un alumno en un cuestionario (mod_quiz).
+   *
+   * Se usa como respaldo cuando el ítem no aparece en el libro de notas
+   * (por ejemplo, cuando está oculto en el gradebook y el token no tiene la
+   * capacidad `moodle/grade:viewhidden`).
+   *
+   * Requiere que `mod_quiz_get_user_best_grade` esté habilitado en el
+   * External Service de Moodle. Si no lo está, devuelve success:false y el
+   * llamador simplemente no aplica el respaldo.
+   *
+   * Respuesta: { hasgrade: boolean, grade?: number }
+   */
+  async getQuizUserBestGrade(quizId: number, userId: number): Promise<ApiResponse<any>> {
+    return this.makeRequest<any>({
+      wsfunction: 'mod_quiz_get_user_best_grade',
+      quizid: quizId.toString(),
+      userid: userId.toString()
+    });
+  }
+
+  /**
    * Get course completion status for a user
    */
   async getCourseCompletion(courseId: number, userId: number): Promise<ApiResponse<any>> {

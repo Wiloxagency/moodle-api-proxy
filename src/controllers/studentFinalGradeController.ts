@@ -41,15 +41,27 @@ interface SimpleGradeItem {
   itemmodule?: string;
   iteminstance?: number | null;
   graderaw?: number | null;
+  hidden?: boolean;
+}
+
+// Actividad de tipo cuestionario detectada directamente en la estructura del
+// curso (core_course_get_contents). Se usa como respaldo cuando el ítem no
+// aparece en el libro de notas (por ejemplo, si está oculto en el gradebook).
+interface CourseQuizModule {
+  cmid: number;
+  instance: number;
+  name: string;
 }
 
 export class StudentFinalGradeController {
   private moodleService: MoodleService;
   private courseLastAccessCache: Map<number, { expiresAt: number; byUserId: Map<number, string> }>;
+  private diagnosticQuizCache: Map<number, { expiresAt: number; quiz: CourseQuizModule | null }>;
 
   constructor() {
     this.moodleService = new MoodleService();
     this.courseLastAccessCache = new Map();
+    this.diagnosticQuizCache = new Map();
   }
 
   // POST /api/grades/final - Batch processing
@@ -186,9 +198,44 @@ export class StudentFinalGradeController {
     }
 
     // 3) Map grades into a common list we can search
-    const items = this.mapGradesToSimpleItems(gradesResult.data);
+    const items = this.mapGradesToSimpleItems(gradesResult.data, userId);
 
-    // 4) Find itemtype="mod" and itemname that includes "Evaluación Final" (ignore accents/case)
+    // 4) Buscar la "Evaluación/Prueba Diagnóstica" en cualquier parte del curso
+    //    (tolerante a acentos/mayúsculas/plurales y sin importar la posición de
+    //    la actividad dentro del curso).
+    //
+    //    IMPORTANTE: esto se calcula ANTES de exigir la "Evaluación Final". Antes
+    //    el método salía con `return null` cuando el curso no tenía Evaluación
+    //    Final y, con ello, se perdía también la nota diagnóstica.
+    const diagnosticaMatch = this.findDiagnosticaActivity(items);
+
+    const diagnosticaGradeVal: number | null = typeof diagnosticaMatch?.graderaw === 'number'
+      ? diagnosticaMatch.graderaw
+      : (diagnosticaMatch?.graderaw != null ? Number(diagnosticaMatch.graderaw) : null);
+
+    // Cadena vacía = "no rindió la evaluación" (el reporte lo muestra como "-").
+    // Un "0.0" real significa que la rindió y obtuvo cero. Antes ambos casos se
+    // guardaban como 0 y eran indistinguibles.
+    let notaDiagnostica = diagnosticaMatch && diagnosticaGradeVal != null
+      ? diagnosticaGradeVal.toFixed(1)
+      : '';
+
+    // 4b) Respaldo: si la actividad diagnóstica no aparece en el libro de notas
+    //     (ítem oculto en el gradebook, sin permiso `moodle/grade:viewhidden`,
+    //     nombre de ítem distinto al de la actividad, etc.) se busca el
+    //     cuestionario directamente en la estructura del curso y se consulta la
+    //     mejor nota del alumno vía mod_quiz. Es best-effort: si el WS no está
+    //     habilitado simplemente se mantiene el valor vacío.
+    let diagnosticaEncontrada = Boolean(diagnosticaMatch);
+    if (!diagnosticaMatch) {
+      const fallbackGrade = await this.findDiagnosticaGradeFallback(courseIdNum, userId);
+      if (fallbackGrade !== undefined) {
+        diagnosticaEncontrada = true;
+        notaDiagnostica = fallbackGrade != null ? fallbackGrade.toFixed(1) : '';
+      }
+    }
+
+    // 5) Find itemtype="mod" and itemname that includes "Evaluación Final" (ignore accents/case)
     const targetPhrase = this.normalize('Evaluación Final');
     const match = items.find(it => {
       if (!it) return false;
@@ -197,25 +244,19 @@ export class StudentFinalGradeController {
       return typeOk && nameOk;
     });
 
-    if (!match) {
+    // Sin Evaluación Final sólo devolvemos null cuando tampoco existe una
+    // actividad diagnóstica; así los cursos que sólo tienen diagnóstica siguen
+    // apareciendo en el reporte (aunque el alumno todavía no la haya rendido).
+    if (!match && !diagnosticaEncontrada) {
       return null;
     }
 
-    // 5) Find "Evaluación/Prueba Diagnóstica" anywhere in the course (accent/case tolerant,
-    //    sin importar la posición de la actividad dentro del curso)
-    const diagnosticaMatch = this.findDiagnosticaActivity(items);
-
     // Normalize graderaw to a number when possible
-    const gradeVal: number | null = typeof match.graderaw === 'number'
-      ? match.graderaw
-      : (match.graderaw != null ? Number(match.graderaw) : null);
-
-    const diagnosticaGradeVal: number | null = typeof diagnosticaMatch?.graderaw === 'number'
-      ? diagnosticaMatch.graderaw
-      : (diagnosticaMatch?.graderaw != null ? Number(diagnosticaMatch.graderaw) : null);
-    const notaDiagnostica = diagnosticaMatch
-      ? (diagnosticaGradeVal != null ? diagnosticaGradeVal.toFixed(1) : '0.0')
-      : '';
+    const gradeVal: number | null = match
+      ? (typeof match.graderaw === 'number'
+        ? match.graderaw
+        : (match.graderaw != null ? Number(match.graderaw) : null))
+      : null;
 
     // Determine EstadoCurso: 0 if no grade or grade is 0, 1 if grade >= 5, 2 if grade < 5
     let approved: number;
@@ -250,7 +291,14 @@ export class StudentFinalGradeController {
       EstadoTeorica: "0",
       NotaPractica: "0",
       EstadoPractica: "0",
-      NotaFinal: gradeVal != null ? gradeVal.toFixed(1) : "0.0",
+      // Cadena vacía = "no rindió la Evaluación Final" (el reporte lo muestra
+      // como "-"); "0.0" = la rindió y obtuvo cero.
+      //
+      // Esto NO altera el envío a VMICA: `buildVimicaPayload` convierte el
+      // valor nulo/vacío en '' y `normalizeVimicaPayload` lo reemplaza por el
+      // default '0', igual que antes. El cálculo de EstadoCurso también usa un
+      // toNum que trata null/'' como 0.
+      NotaFinal: gradeVal != null ? gradeVal.toFixed(1) : "",
       NotaDiagnostica: notaDiagnostica,
       UltimoAcceso: ultimoAcceso,
       EstadoCurso: approved.toString(),
@@ -339,7 +387,7 @@ export class StudentFinalGradeController {
     }
   }
 
-  private mapGradesToSimpleItems(rawData: any): SimpleGradeItem[] {
+  private mapGradesToSimpleItems(rawData: any, userId?: number): SimpleGradeItem[] {
     const items: SimpleGradeItem[] = [];
 
     // Shape A: gradereport_user_get_grade_items
@@ -355,46 +403,57 @@ export class StudentFinalGradeController {
             itemmodule: gi.itemmodule,
             iteminstance: Number.isFinite(instanceNum) ? instanceNum : null,
             graderaw: gr,
+            hidden: gi.hidden === true || gi.hidden === 1,
           });
         }
       }
       return items;
     }
 
-    // Shape B: core_grades_get_grades (best-effort mapping)
+    // Shape B: core_grades_get_grades
+    //
+    // Esta función devuelve `{ items: [ { id, itemname|name, itemtype,
+    // itemmodule, iteminstance, activityid, grades: [ { userid, grade } ] } ] }`:
+    // las notas van ANIDADAS dentro de cada item, no en un `rawData.grades`
+    // de primer nivel. El mapeo anterior sólo contemplaba la forma de primer
+    // nivel y, cuando se usaba este fallback, todos los ítems quedaban con
+    // graderaw = null (notas en blanco / 0 en el reporte).
     if (rawData && Array.isArray(rawData.items)) {
-      const indexById: Record<number, any> = {};
+      const pickUserGrade = (gradeList: any): number | null => {
+        if (!gradeList) return null;
+        const arr = Array.isArray(gradeList) ? gradeList : [gradeList];
+        const forUser = userId != null
+          ? arr.find((g: any) => Number(g?.userid) === Number(userId))
+          : undefined;
+        const chosen = forUser || arr[0];
+        if (!chosen) return null;
+        const raw = chosen.grade !== undefined ? chosen.grade : chosen.graderaw;
+        if (raw === null || raw === undefined || raw === '') return null;
+        const n = typeof raw === 'number' ? raw : Number(raw);
+        return Number.isFinite(n) ? n : null;
+      };
+
+      // Notas en primer nivel (formato alternativo): { grades: { <itemid>: [...] } }
+      const topLevelGrades = rawData.grades && !Array.isArray(rawData.grades) ? rawData.grades : null;
+
       for (const it of rawData.items) {
-        if (typeof it.id === 'number') indexById[it.id] = it;
-      }
-      if (rawData.grades) {
-        for (const itemIdStr of Object.keys(rawData.grades)) {
-          const itemId = Number(itemIdStr);
-          const meta = indexById[itemId] || {};
-          const userGrades = rawData.grades[itemIdStr];
-          const ug = Array.isArray(userGrades) ? userGrades[0] : userGrades;
-          const gradeNum: number | null = (ug && typeof ug.grade === 'number') ? ug.grade : (ug && ug.grade != null ? Number(ug.grade) : null);
-          const instanceNum = meta.iteminstance != null ? Number(meta.iteminstance) : NaN;
-          items.push({
-            itemtype: meta.itemtype,
-            itemname: meta.itemname,
-            itemmodule: meta.itemmodule,
-            iteminstance: Number.isFinite(instanceNum) ? instanceNum : null,
-            graderaw: gradeNum,
-          });
-        }
-      } else {
-        // Sometimes items[].calculation or other forms exist; we can't infer grades reliably without grades mapping
-        for (const it of rawData.items) {
-          const instanceNum = it.iteminstance != null ? Number(it.iteminstance) : NaN;
-          items.push({
-            itemtype: it.itemtype,
-            itemname: it.itemname,
-            itemmodule: it.itemmodule,
-            iteminstance: Number.isFinite(instanceNum) ? instanceNum : null,
-            graderaw: null,
-          });
-        }
+        const instanceNum = it.iteminstance != null
+          ? Number(it.iteminstance)
+          : (it.activityid != null ? Number(it.activityid) : NaN);
+
+        const gradeFromItem = pickUserGrade(it.grades);
+        const gradeFromTop = topLevelGrades && it.id != null ? pickUserGrade(topLevelGrades[String(it.id)]) : null;
+
+        items.push({
+          // core_grades_get_grades no siempre informa itemtype; si el ítem
+          // pertenece a una actividad lo tratamos como "mod".
+          itemtype: it.itemtype || (it.itemmodule || it.activityid ? 'mod' : undefined),
+          itemname: it.itemname || it.name,
+          itemmodule: it.itemmodule,
+          iteminstance: Number.isFinite(instanceNum) ? instanceNum : null,
+          graderaw: gradeFromItem != null ? gradeFromItem : gradeFromTop,
+          hidden: it.hidden === true || it.hidden === 1,
+        });
       }
       return items;
     }
@@ -402,28 +461,154 @@ export class StudentFinalGradeController {
     return items; // empty
   }
 
+  // Palabras que indican que la actividad es una evaluación (cualquier variante).
+  private isEvaluationWord(word: string): boolean {
+    return (
+      word.startsWith('evaluacion') ||   // evaluacion, evaluaciones
+      word.startsWith('evaluativ') ||    // evaluativa, evaluativo
+      word.startsWith('prueba') ||       // prueba, pruebas
+      word.startsWith('examen') ||       // examen
+      word.startsWith('examenes') ||
+      word.startsWith('test') ||         // test, tests
+      word.startsWith('cuestionario') || // cuestionario, cuestionarios
+      word.startsWith('quiz')            // quiz, quizes
+    );
+  }
+
+  // "diagnostic" cubre diagnóstico/diagnóstica/diagnósticos/diagnósticas y
+  // compuestos como autodiagnóstico. normalize() ya quitó acentos y mayúsculas.
+  private isDiagnosticWord(word: string): boolean {
+    return word.includes('diagnostic');
+  }
+
   private isDiagnosticActivityName(name?: string): boolean {
     if (!name) return false;
-    // El criterio es que el nombre esté compuesto por la combinación de
-    // una palabra de tipo ("Evaluación" | "Prueba") y una palabra de
-    // diagnóstico ("Diagnóstica" | "Diagnóstico"), en cualquier orden,
-    // sin importar mayúsculas/minúsculas ni acentos, y sin importar en qué
-    // parte del curso esté ubicada la actividad.
-    // normalize() ya pasa a minúsculas y elimina los acentos.
-    const words = this.normalize(name).split(/[^a-z]+/).filter(Boolean);
-    const hasTypeWord = words.some((w) => w === 'evaluacion' || w === 'prueba');
-    const hasDiagnosticWord = words.some((w) => w === 'diagnostica' || w === 'diagnostico');
-    return hasTypeWord && hasDiagnosticWord;
+    // Antes se exigía la coincidencia EXACTA de dos palabras
+    // ("evaluacion"|"prueba" + "diagnostica"|"diagnostico"), lo que dejaba
+    // fuera nombres reales como "Evaluaciones Diagnósticas", "Autodiagnóstico
+    // inicial" o "Diagnóstico de entrada". La palabra "diagnóstic*" ya es
+    // suficientemente discriminante dentro de un curso, así que basta con ella.
+    const words = this.normalize(name).split(/[^a-z0-9]+/).filter(Boolean);
+    return words.some((w) => this.isDiagnosticWord(w));
+  }
+
+  // Puntaje para elegir el mejor candidato cuando hay más de una actividad con
+  // "diagnóstic*" en el nombre: se prefiere un cuestionario y un nombre que
+  // además contenga una palabra de evaluación.
+  private scoreDiagnosticCandidate(item: SimpleGradeItem): number {
+    const words = this.normalize(item.itemname || '').split(/[^a-z0-9]+/).filter(Boolean);
+    let score = 0;
+    if (words.some((w) => this.isEvaluationWord(w))) score += 2;
+    if ((item.itemmodule || '').toLowerCase() === 'quiz') score += 1;
+    if (item.graderaw != null) score += 1;
+    return score;
   }
 
   private findDiagnosticaActivity(items: SimpleGradeItem[]): SimpleGradeItem | undefined {
-    const modItems = items.filter((it) => (it.itemtype || '').toLowerCase() === 'mod');
-    if (!modItems.length) return undefined;
+    if (!items.length) return undefined;
 
-    // Devuelve la primera actividad de tipo módulo cuyo nombre cumpla el
-    // criterio de evaluación diagnóstica, sin importar su posición dentro
-    // del curso (ya no se exige que esté en el primer módulo).
-    return modItems.find((it) => this.isDiagnosticActivityName(it.itemname));
+    // Se buscan primero los ítems de actividad ("mod"); si el WS devolviera el
+    // itemtype vacío o con otro valor, se reintenta sobre la lista completa
+    // para no perder la actividad.
+    const modItems = items.filter((it) => (it.itemtype || '').toLowerCase() === 'mod');
+    const pools = modItems.length ? [modItems, items] : [items];
+
+    for (const pool of pools) {
+      const candidates = pool.filter((it) => this.isDiagnosticActivityName(it.itemname));
+      if (!candidates.length) continue;
+      // Orden estable: mayor puntaje primero, respetando el orden original ante empates.
+      return candidates
+        .map((item, index) => ({ item, index, score: this.scoreDiagnosticCandidate(item) }))
+        .sort((a, b) => (b.score - a.score) || (a.index - b.index))[0].item;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Respaldo cuando la actividad diagnóstica no está en el libro de notas.
+   *
+   * Devuelve:
+   *   - number  -> nota obtenida por el alumno
+   *   - null    -> la actividad existe pero el alumno no tiene nota
+   *   - undefined -> no se pudo determinar (no hay actividad diagnóstica o el
+   *                  WS no está disponible); el llamador deja el valor vacío.
+   */
+  private async findDiagnosticaGradeFallback(courseIdNum: number, userId: number): Promise<number | null | undefined> {
+    const quiz = await this.getDiagnosticQuizModule(courseIdNum);
+    if (!quiz) return undefined;
+
+    try {
+      const best = await this.moodleService.getQuizUserBestGrade(quiz.instance, userId);
+      if (!best.success) return null;
+      const data: any = best.data;
+      if (data && data.hasgrade === true) {
+        const grade = typeof data.grade === 'number' ? data.grade : Number(data.grade);
+        return Number.isFinite(grade) ? grade : null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getDiagnosticQuizModule(courseIdNum: number): Promise<CourseQuizModule | null> {
+    const cacheTtlMs = 5 * 60 * 1000;
+    const now = Date.now();
+    const cached = this.diagnosticQuizCache.get(courseIdNum);
+    if (cached && cached.expiresAt > now) return cached.quiz;
+
+    // 1º intento: listado de cuestionarios del curso (mod_quiz_get_quizzes_by_courses).
+    //    Se prueba antes que core_course_get_contents porque en algunas
+    //    instalaciones el token tiene habilitado el WS de quiz pero no el de
+    //    contenidos del curso (que responde `accessexception`).
+    let quiz: CourseQuizModule | null = await this.findDiagnosticQuizViaQuizWs(courseIdNum);
+
+    // 2º intento: estructura completa del curso.
+    if (!quiz) {
+      try {
+        const contents = await this.moodleService.getCourseGradeItems(courseIdNum);
+        if (contents.success && Array.isArray(contents.data)) {
+          const candidates: CourseQuizModule[] = [];
+          for (const section of contents.data as any[]) {
+            const modules = Array.isArray(section?.modules) ? section.modules : [];
+            for (const m of modules) {
+              const modname = String(m?.modname || '').toLowerCase();
+              if (modname !== 'quiz') continue;
+              const name = String(m?.name || '');
+              if (!this.isDiagnosticActivityName(name)) continue;
+              const instance = Number(m?.instance);
+              if (!Number.isFinite(instance)) continue;
+              candidates.push({ cmid: Number(m?.id) || 0, instance, name });
+            }
+          }
+          quiz = candidates[0] || null;
+        }
+      } catch {
+        quiz = null;
+      }
+    }
+
+    this.diagnosticQuizCache.set(courseIdNum, { expiresAt: now + cacheTtlMs, quiz });
+    return quiz;
+  }
+
+  private async findDiagnosticQuizViaQuizWs(courseIdNum: number): Promise<CourseQuizModule | null> {
+    try {
+      const result = await this.moodleService.getCourseQuizzes(courseIdNum);
+      if (!result.success) return null;
+      const quizzes = Array.isArray((result.data as any)?.quizzes) ? (result.data as any).quizzes : [];
+      for (const q of quizzes) {
+        const name = String(q?.name || '');
+        if (!this.isDiagnosticActivityName(name)) continue;
+        const instance = Number(q?.id); // en mod_quiz, `id` ES el quizid (instance)
+        if (!Number.isFinite(instance)) continue;
+        return { cmid: Number(q?.coursemodule) || 0, instance, name };
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   private calculateQuizProgress(items: SimpleGradeItem[]): number {
