@@ -34,13 +34,13 @@ export class MoodleService {
     return url.toString();
   }
 
-  private async makeRequest<T>(params: MoodleWebServiceParams): Promise<ApiResponse<T>> {
+  private async makeRequest<T>(params: MoodleWebServiceParams, timeoutMs = 10000): Promise<ApiResponse<T>> {
     try {
     const fullParams = this.addDefaultParams(params);
     const url = this.buildUrl(fullParams);
-      
+
       const response: AxiosResponse<T | MoodleErrorResponse> = await axios.get(url, {
-        timeout: 10000, // 10 seconds timeout
+        timeout: timeoutMs,
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Moodle-API-Proxy/1.0'
@@ -300,10 +300,22 @@ export class MoodleService {
    * Get enrolled users for a specific course
    */
   async getEnrolledUsers(courseId: number): Promise<ApiResponse<any[]>> {
+    // Se limitan los campos devueltos: en cursos con cientos de alumnos la
+    // respuesta completa pesa varios MB y agota el timeout. Si la instalación
+    // no admite la opción `userfields`, se reintenta la llamada sin ella.
+    const lite = await this.makeRequest<any[]>({
+      wsfunction: 'core_enrol_get_enrolled_users',
+      courseid: courseId.toString(),
+      'options[0][name]': 'userfields',
+      'options[0][value]': 'id,username,email,idnumber,firstname,lastname,fullname,lastaccess'
+    }, 30000);
+
+    if (lite.success && Array.isArray(lite.data)) return lite;
+
     return this.makeRequest<any[]>({
       wsfunction: 'core_enrol_get_enrolled_users',
       courseid: courseId.toString()
-    });
+    }, 30000);
   }
 
   /**

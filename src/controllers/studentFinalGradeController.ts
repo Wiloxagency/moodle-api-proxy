@@ -23,6 +23,7 @@ interface BatchRequestItem {
   IdCurso: string;
   RutAlumno: string;
   correlative: string;
+  Email?: string;
 }
 
 interface BatchResponseData {
@@ -53,14 +54,32 @@ interface CourseQuizModule {
   name: string;
 }
 
+// Índice de los usuarios matriculados en un curso, construido con una sola
+// llamada a core_enrol_get_enrolled_users y reutilizado para dos cosas:
+//   1. resolver el usuario de Moodle de cada participante, y
+//   2. obtener su último acceso.
+//
+// Resolver contra los matriculados (y no contra todo el sitio) evita además
+// emparejar por error con un usuario homónimo que no está en el curso.
+interface CourseUserIndex {
+  lastAccessByUserId: Map<number, string>;
+  byUsername: Map<string, any>;
+  byEmail: Map<string, any>;
+  byIdnumber: Map<string, any>;
+  // Correos que aparecen en más de un matriculado (correos genéricos de
+  // empresa). No sirven para identificar a nadie: se descartan al resolver.
+  ambiguousEmails: Set<string>;
+  users: any[];
+}
+
 export class StudentFinalGradeController {
   private moodleService: MoodleService;
-  private courseLastAccessCache: Map<number, { expiresAt: number; byUserId: Map<number, string> }>;
+  private courseUsersCache: Map<number, { expiresAt: number; index: CourseUserIndex }>;
   private diagnosticQuizCache: Map<number, { expiresAt: number; quiz: CourseQuizModule | null }>;
 
   constructor() {
     this.moodleService = new MoodleService();
-    this.courseLastAccessCache = new Map();
+    this.courseUsersCache = new Map();
     this.diagnosticQuizCache = new Map();
   }
 
@@ -91,7 +110,7 @@ export class StudentFinalGradeController {
         }
 
         try {
-          const progress = await this.processSingleGrade(item.RutAlumno, item.IdCurso, item.correlative);
+          const progress = await this.processSingleGrade(item.RutAlumno, item.IdCurso, item.correlative, item.Email || item.email);
           if (progress) {
             // Ignore entries with Avance=100, Asistencia=0, NotaFinal=0
             if (this.shouldIgnoreProgress(progress)) {
@@ -123,17 +142,20 @@ export class StudentFinalGradeController {
     }
   }
 
-  // GET /api/grades/final?username=...&courseId=... (keeping the original single endpoint)
+  // GET /api/grades/final?username=...&courseId=...[&email=...]
+  //
+  // `email` es opcional pero recomendable: permite resolver al alumno cuando la
+  // matriculación en Moodle no usa el RUT como username.
   async getFinalGrade(req: Request, res: Response) {
-    const { username, courseId } = req.query as { username?: string; courseId?: string };
+    const { username, courseId, email } = req.query as { username?: string; courseId?: string; email?: string };
 
     try {
-      if (!username || !courseId) {
-        res.status(400).json({ success: false, error: { message: 'Both username and courseId parameters are required', code: 'MISSING_PARAMETERS' } });
+      if ((!username && !email) || !courseId) {
+        res.status(400).json({ success: false, error: { message: 'courseId is required, plus username and/or email', code: 'MISSING_PARAMETERS' } });
         return;
       }
 
-      const progress = await this.processSingleGrade(username, courseId);
+      const progress = await this.processSingleGrade(username || '', courseId, undefined, email);
       if (progress) {
         const data: FinalGradeResponseData = {
           found: true,
@@ -152,44 +174,32 @@ export class StudentFinalGradeController {
   }
 
   // Process a single grade (extracted from the original logic)
-  private async processSingleGrade(username: string, courseId: string, correlative?: string): Promise<ProgressData | null> {
+  private async processSingleGrade(username: string, courseId: string, correlative?: string, email?: string): Promise<ProgressData | null> {
     const courseIdNum = parseInt(courseId, 10);
     if (isNaN(courseIdNum)) {
       return null;
     }
 
-    // 1) Resolve user via Moodle (exact then partial), fallback to local DB to enhance username
-    let userLookup = await this.moodleService.getUserByUsername(username);
-    let users = this.unwrapUsers(userLookup.data);
-    if (!userLookup.success || users.length === 0) {
-      userLookup = await this.moodleService.searchUsersByPartialUsername(username);
-      users = this.unwrapUsers(userLookup.data);
+    // 1) Resolver el usuario de Moodle.
+    //
+    // Primero se busca entre los MATRICULADOS del curso, por correo y por
+    // username. Muchas matriculaciones no usan el RUT como username (alumnos
+    // extranjeros o sin RUT se dan de alta con el correo), y antes esos
+    // participantes no se resolvían nunca: el reporte los mostraba en blanco
+    // aunque tuvieran notas en Moodle. Buscar dentro del curso evita además
+    // emparejar con un homónimo que no está matriculado.
+    let user: any = await this.resolveEnrolledUser(courseIdNum, username, email);
+
+    // 2) Si no está en el índice del curso, se recurre a la búsqueda global.
+    if (!user) {
+      user = await this.resolveUserGlobally(username, email);
     }
 
-    if (!userLookup.success || users.length === 0) {
-      const participant = await this.findParticipantByPartialUsername(username);
-      if (participant) {
-        const altUsername = String(participant.rut || participant.numeroInscripcion);
-        userLookup = await this.moodleService.getUserByUsername(altUsername);
-        users = this.unwrapUsers(userLookup.data);
-        if (!userLookup.success || users.length === 0) {
-          userLookup = await this.moodleService.searchUsersByPartialUsername(altUsername);
-          users = this.unwrapUsers(userLookup.data);
-        }
-      }
-    }
-
-    if (!userLookup.success || users.length === 0) {
+    if (!user || user.id == null) {
       return null;
     }
 
-    // Choose best match
-    let user = users[0];
-    const exactMatch = users.find((u: any) => u.username === username);
-    const startsWithMatch = users.find((u: any) => typeof u.username === 'string' && u.username.startsWith(username));
-    user = exactMatch || startsWithMatch || user;
-
-    const userId = user.id;
+    const userId = Number(user.id);
 
     // 2) Fetch grades for user & course
     const gradesResult = await this.moodleService.getUserGrades(courseIdNum, userId);
@@ -308,37 +318,199 @@ export class StudentFinalGradeController {
     return progress;
   }
 
-  private async getCourseLastAccessMap(courseId: number): Promise<Map<number, string>> {
+  /**
+   * Índice de los matriculados del curso. Una sola llamada a Moodle sirve para
+   * resolver usuarios y para los últimos accesos, y se cachea 5 minutos por
+   * curso (importante en cursos de cientos de alumnos).
+   */
+  private async getCourseUserIndex(courseId: number): Promise<CourseUserIndex> {
     const now = Date.now();
-    const cached = this.courseLastAccessCache.get(courseId);
-    if (cached && cached.expiresAt > now) return cached.byUserId;
+    const cached = this.courseUsersCache.get(courseId);
+    if (cached && cached.expiresAt > now) return cached.index;
 
-    const byUserId = new Map<number, string>();
+    const index: CourseUserIndex = {
+      lastAccessByUserId: new Map<number, string>(),
+      byUsername: new Map<string, any>(),
+      byEmail: new Map<string, any>(),
+      byIdnumber: new Map<string, any>(),
+      ambiguousEmails: new Set<string>(),
+      users: [],
+    };
+
     try {
       const enrolledUsers = await this.moodleService.getEnrolledUsers(courseId);
       if (enrolledUsers.success && Array.isArray(enrolledUsers.data)) {
         for (const user of enrolledUsers.data) {
           const userId = Number((user as any).id);
           if (!Number.isFinite(userId)) continue;
-          const lastAccessRaw = (user as any).lastaccess;
-          const lastAccessNum = Number(lastAccessRaw);
-          if (Number.isFinite(lastAccessNum) && lastAccessNum > 0) {
-            byUserId.set(userId, new Date(lastAccessNum * 1000).toISOString());
-          } else {
-            byUserId.set(userId, '');
+
+          index.users.push(user);
+
+          const lastAccessNum = Number((user as any).lastaccess);
+          index.lastAccessByUserId.set(
+            userId,
+            Number.isFinite(lastAccessNum) && lastAccessNum > 0
+              ? new Date(lastAccessNum * 1000).toISOString()
+              : ''
+          );
+
+          const username = this.normalizeKey((user as any).username);
+          if (username && !index.byUsername.has(username)) index.byUsername.set(username, user);
+
+          const mail = this.normalizeKey((user as any).email);
+          if (mail) {
+            // Un correo repetido entre matriculados (correo genérico de la
+            // empresa) no identifica a nadie: se marca como ambiguo.
+            if (index.byEmail.has(mail)) index.ambiguousEmails.add(mail);
+            else index.byEmail.set(mail, user);
           }
+
+          const idnumber = this.normalizeKey((user as any).idnumber);
+          if (idnumber && !index.byIdnumber.has(idnumber)) index.byIdnumber.set(idnumber, user);
         }
       }
     } catch (error) {
-      console.error('Error getting course last access map:', error);
+      console.error('Error building course user index:', error);
     }
 
-    this.courseLastAccessCache.set(courseId, {
-      expiresAt: now + 5 * 60 * 1000,
-      byUserId,
-    });
+    // Sólo se cachea un índice con contenido: si la llamada falló (timeout,
+    // permisos), conviene reintentar en la siguiente petición en vez de
+    // arrastrar un índice vacío durante 5 minutos.
+    if (index.users.length) {
+      this.courseUsersCache.set(courseId, { expiresAt: now + 5 * 60 * 1000, index });
+    }
 
-    return byUserId;
+    return index;
+  }
+
+  private async getCourseLastAccessMap(courseId: number): Promise<Map<number, string>> {
+    const index = await this.getCourseUserIndex(courseId);
+    return index.lastAccessByUserId;
+  }
+
+  private normalizeKey(value: any): string {
+    return String(value ?? '').trim().toLowerCase();
+  }
+
+  /**
+   * Busca al participante entre los matriculados del curso.
+   *
+   * El correo es OPCIONAL y nunca tiene prioridad sobre el username: hay
+   * empresas cuyos alumnos comparten un correo genérico en Moodle, y ese correo
+   * no identifica a nadie. Por eso el orden va de la clave más estricta a la
+   * más laxa, y los correos repetidos dentro del curso se descartan:
+   *
+   *   1. RUT    -> username exacto      (la clave que ya se usaba)
+   *   2. RUT    -> idnumber exacto
+   *   3. correo -> email, sólo si es único entre los matriculados
+   *   4. correo -> username, sólo si es único    (matrícula dada de alta por correo)
+   *   5. RUT sin puntos/guion o sin dígito verificador -> username / idnumber
+   *   6. username que empieza por el RUT  ("12345678" vs "12345678-9")
+   */
+  private async resolveEnrolledUser(courseId: number, username: string, email?: string): Promise<any | undefined> {
+    const index = await this.getCourseUserIndex(courseId);
+    if (!index.users.length) return undefined;
+
+    const userKey = this.normalizeKey(username);
+    const mailKey = this.normalizeKey(email);
+
+    // 1 y 2 — el username (RUT) es la clave primaria del sistema.
+    if (userKey) {
+      const exact = index.byUsername.get(userKey) || index.byIdnumber.get(userKey);
+      if (exact) return exact;
+    }
+
+    // 3 y 4 — el correo sólo cuenta si no está repetido en el curso.
+    if (mailKey && !index.ambiguousEmails.has(mailKey)) {
+      const byMail = index.byEmail.get(mailKey) || index.byUsername.get(mailKey);
+      if (byMail) return byMail;
+    }
+
+    if (!userKey) return undefined;
+
+    // 5 — variantes del RUT: sin puntos/guion y sin dígito verificador.
+    const compact = userKey.replace(/[.\-\s]/g, '');
+    const withoutDv = compact.replace(/[0-9k]$/, '');
+    const variants = [compact, withoutDv].filter((v) => v.length >= 5);
+
+    for (const variant of variants) {
+      const hit = index.byUsername.get(variant) || index.byIdnumber.get(variant);
+      if (hit) return hit;
+    }
+
+    // 6 — coincidencia por prefijo. Sólo se acepta si es inequívoca: si el
+    // prefijo encaja con más de un matriculado no se elige ninguno.
+    for (const variant of [userKey, ...variants]) {
+      if (variant.length < 5) continue;
+      const prefixHits = index.users.filter((u: any) => {
+        const uname = this.normalizeKey(u.username).replace(/[.\-\s]/g, '');
+        return uname !== '' && uname.startsWith(variant);
+      });
+      if (prefixHits.length === 1) return prefixHits[0];
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Búsqueda en todo el sitio, para cuando el participante no aparece entre los
+   * matriculados (índice no disponible, matrícula por grupo, etc.).
+   */
+  private async resolveUserGlobally(username: string, email?: string): Promise<any | undefined> {
+    const pickBest = (users: any[]): any | undefined => {
+      if (!users.length) return undefined;
+      const exact = users.find((u: any) => this.normalizeKey(u.username) === this.normalizeKey(username));
+      const startsWith = users.find(
+        (u: any) => typeof u.username === 'string' && this.normalizeKey(u.username).startsWith(this.normalizeKey(username))
+      );
+      return exact || startsWith || users[0];
+    };
+
+    // El username (RUT) sigue siendo la clave primaria; el correo es el respaldo.
+    if (username && String(username).trim()) {
+      const lookup = await this.moodleService.getUserByUsername(username);
+      const users = this.unwrapUsers(lookup.data);
+      if (lookup.success && users.length) return pickBest(users);
+    }
+
+    // Correo: sólo se acepta si devuelve UN único usuario. Los correos
+    // genéricos compartidos por varios alumnos no identifican a nadie.
+    if (email && String(email).trim()) {
+      const byEmail = await this.moodleService.getUsersByField('email', String(email).trim());
+      const users = this.unwrapUsers(byEmail.data);
+      if (byEmail.success && users.length === 1) return users[0];
+    }
+
+    if (username && String(username).trim()) {
+      const lookup = await this.moodleService.searchUsersByPartialUsername(username);
+      const users = this.unwrapUsers(lookup.data);
+      if (lookup.success && users.length) return pickBest(users);
+    }
+
+    // Último recurso: mirar la ficha local del participante por si aporta un
+    // username o un correo distintos a los recibidos.
+    const participant = await this.findParticipantByPartialUsername(username);
+    if (participant) {
+      const altMail = String((participant as any).mail || '').trim();
+      if (altMail && this.normalizeKey(altMail) !== this.normalizeKey(email)) {
+        const byAltMail = await this.moodleService.getUsersByField('email', altMail);
+        const users = this.unwrapUsers(byAltMail.data);
+        if (byAltMail.success && users.length === 1) return users[0];
+      }
+
+      const altUsername = String(participant.rut || participant.numeroInscripcion || '').trim();
+      if (altUsername && altUsername !== username) {
+        let lookup = await this.moodleService.getUserByUsername(altUsername);
+        let users = this.unwrapUsers(lookup.data);
+        if (!lookup.success || users.length === 0) {
+          lookup = await this.moodleService.searchUsersByPartialUsername(altUsername);
+          users = this.unwrapUsers(lookup.data);
+        }
+        if (lookup.success && users.length) return pickBest(users);
+      }
+    }
+
+    return undefined;
   }
 
   private shouldIgnoreProgress(progress: ProgressData): boolean {

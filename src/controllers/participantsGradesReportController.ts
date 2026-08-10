@@ -52,7 +52,10 @@ export class ParticipantsGradesReportController {
       RutAlumno: (p as any).rut || '',
       correlative: (p as any).rut || '',
       Nombres: (p as any).nombres || '',
-      Apellidos: (p as any).apellidos || ''
+      Apellidos: (p as any).apellidos || '',
+      // El correo es necesario para resolver al alumno en Moodle cuando la
+      // matriculación no usa el RUT como username (alumnos extranjeros).
+      Email: (p as any).mail || ''
     }));
 
     const passed: any[] = [];
@@ -65,7 +68,7 @@ export class ParticipantsGradesReportController {
     for (const it of items) {
       try {
         // @ts-ignore - access private via bracket for reuse
-        const progress = await (this.finalCtrl as any).processSingleGrade(it.RutAlumno, it.IdCurso, it.correlative);
+        const progress = await (this.finalCtrl as any).processSingleGrade(it.RutAlumno, it.IdCurso, it.correlative, (it as any).Email);
         if (progress && !(this.finalCtrl as any).shouldIgnoreProgress(progress)) {
           // Regla: antes de la fecha de término no mostrar "Reprobado" (EstadoCurso '2')
           const estado = (progress as any).EstadoCurso;
@@ -173,6 +176,9 @@ export class ParticipantsGradesReportController {
     // Procesa un único participante: consulta Moodle y persiste el resultado
     const processParticipant = async (p: any): Promise<NumericDoc> => {
       const rut = (p as any).rut || '';
+      // Necesario para resolver al alumno cuando la matriculación en Moodle no
+      // usa el RUT como username (alumnos extranjeros dados de alta por correo).
+      const mail = (p as any).mail || '';
       let avance: number | null = null;
       let asistencia: number | null = null;
       let notaFinal: number | null = null;
@@ -180,7 +186,7 @@ export class ParticipantsGradesReportController {
       let ultimoAcceso: string | null = null;
       try {
         // @ts-ignore - reuse internal method
-        const progress = await (this.finalCtrl as any).processSingleGrade(rut, courseId, rut);
+        const progress = await (this.finalCtrl as any).processSingleGrade(rut, courseId, rut, mail);
         if (progress) {
           avance = toNum((progress as any).PorcentajeAvance);
           asistencia = toNum((progress as any).PorcentajeAsistenciaAlumno);
