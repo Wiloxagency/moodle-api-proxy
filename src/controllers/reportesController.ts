@@ -2,6 +2,11 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import { getGradesReportsCollection, getInscripcionesCollection, getParticipantesCollection, getVimicaCollection } from '../db/mongo';
 
+interface EvaluacionModuloRow {
+  nombre: string;
+  nota: number | null;
+}
+
 interface ReporteAvanceRow {
   empresa: string;
   nombreCurso: string;
@@ -15,6 +20,9 @@ interface ReporteAvanceRow {
   ultimoAcceso: string;
   notaFinal: number | null;
   notaDiagnostica: number | null;
+  // Evaluaciones por módulo del curso (ni diagnóstica ni final), en el orden
+  // del libro de notas de Moodle. Vacío si el curso no tiene ninguna.
+  evaluacionesModulo: EvaluacionModuloRow[];
   porcentajeAvance: number | null;
   porcentajeAsistencia: number | null;
   fechaReporte: string;
@@ -235,6 +243,29 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
 }
 
 
+// Las evaluaciones por módulo se persisten en `grades_reports`. Los documentos
+// anteriores al cambio no tienen el campo: se devuelve un arreglo vacío para que
+// el frontend no tenga que distinguir "sin datos" de "sin evaluaciones".
+const normalizeEvaluacionesModulo = (value: any): EvaluacionModuloRow[] => {
+  if (!Array.isArray(value)) return [];
+  const rows: EvaluacionModuloRow[] = [];
+  for (const item of value) {
+    const nombre = String(item?.nombre ?? '').trim();
+    if (!nombre) continue;
+    const rawNota = item?.nota;
+    const nota = rawNota === null || rawNota === undefined || rawNota === ''
+      ? null
+      : Number(rawNota);
+    // Un solo decimal. Se redondea también en la lectura porque los documentos
+    // persistidos antes de este cambio guardan la nota tal cual la dio Moodle.
+    rows.push({
+      nombre,
+      nota: Number.isFinite(nota as number) ? Number((nota as number).toFixed(1)) : null,
+    });
+  }
+  return rows;
+};
+
 export class ReportesController {
   async getReporteAvances(_req: Request, res: Response): Promise<void> {
     const [insCol, partCol, gradesCol] = await Promise.all([
@@ -316,6 +347,7 @@ export class ReportesController {
           ultimoAcceso: String((grade as any)?.UltimoAcceso || ''),
           notaFinal: grade?.NotaFinal ?? null,
           notaDiagnostica: grade?.NotaDiagnostica ?? null,
+          evaluacionesModulo: normalizeEvaluacionesModulo((grade as any)?.EvaluacionesModulo),
           porcentajeAvance: grade?.PorcentajeAvance ?? null,
           porcentajeAsistencia: grade?.PorcentajeAsistenciaAlumno ?? null,
           fechaReporte: reportDate,

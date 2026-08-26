@@ -14,6 +14,10 @@ interface ProgressData {
   EstadoPractica: string;
   NotaFinal: string;
   NotaDiagnostica?: string;
+  // Evaluaciones "por módulo": todas las evaluaciones del libro de notas
+  // EXCEPTO la Diagnóstica y la Evaluación Final, en el orden del gradebook
+  // (que es el orden de los módulos del curso).
+  EvaluacionesModulo?: EvaluacionModulo[];
   UltimoAcceso?: string;
   EstadoCurso: string;
   Observacion: string;
@@ -34,6 +38,14 @@ interface BatchResponseData {
 interface FinalGradeResponseData {
   found: boolean;
   progress?: ProgressData;
+}
+
+// Una evaluación de módulo con la nota tal cual la entrega Moodle.
+// nota = null significa "no rindió"; 0 significa "rindió y obtuvo cero"
+// (misma convención que NotaFinal / NotaDiagnostica).
+export interface EvaluacionModulo {
+  nombre: string;
+  nota: number | null;
 }
 
 interface SimpleGradeItem {
@@ -288,6 +300,11 @@ export class StudentFinalGradeController {
       attendanceQuiz = 100;
     }
 
+    // 6) Evaluaciones por módulo: el resto de las evaluaciones del libro de
+    //    notas (ni diagnóstica ni final). No se exige que el nombre contenga
+    //    "módulo" porque los cursos no siguen una convención única.
+    const evaluacionesModulo = this.collectEvaluacionesModulo(items, diagnosticaMatch, match);
+
     const courseLastAccessMap = await this.getCourseLastAccessMap(courseIdNum);
     const ultimoAcceso = courseLastAccessMap.get(userId) || '';
 
@@ -310,6 +327,7 @@ export class StudentFinalGradeController {
       // toNum que trata null/'' como 0.
       NotaFinal: gradeVal != null ? gradeVal.toFixed(1) : "",
       NotaDiagnostica: notaDiagnostica,
+      EvaluacionesModulo: evaluacionesModulo,
       UltimoAcceso: ultimoAcceso,
       EstadoCurso: approved.toString(),
       Observacion: "Curso iniciado sin observación"
@@ -674,6 +692,60 @@ export class StudentFinalGradeController {
     if ((item.itemmodule || '').toLowerCase() === 'quiz') score += 1;
     if (item.graderaw != null) score += 1;
     return score;
+  }
+
+  // ¿El nombre de la actividad la identifica como una evaluación?
+  private isEvaluationActivityName(name?: string): boolean {
+    if (!name) return false;
+    const words = this.normalize(name).split(/[^a-z0-9]+/).filter(Boolean);
+    return words.some((w) => this.isEvaluationWord(w));
+  }
+
+  /**
+   * Evaluaciones "por módulo" del curso: todos los ítems de actividad del libro
+   * de notas que son una evaluación, EXCEPTO la Diagnóstica y la Evaluación
+   * Final (que ya viajan en sus propios campos).
+   *
+   * Se conserva el orden del gradebook, que es el orden de los módulos del
+   * curso, para que la columna "Eval. 1" signifique lo mismo en todas las filas
+   * de un mismo curso. La nota se devuelve TAL CUAL la entrega Moodle (ver la
+   * nota sobre grademax en la memoria del proyecto): null = no rindió, 0 =
+   * rindió y obtuvo cero.
+   */
+  private collectEvaluacionesModulo(
+    items: SimpleGradeItem[],
+    diagnostica?: SimpleGradeItem,
+    final?: SimpleGradeItem
+  ): EvaluacionModulo[] {
+    const finalPhrase = this.normalize('Evaluación Final');
+    const result: EvaluacionModulo[] = [];
+
+    for (const it of items) {
+      if (!it) continue;
+      // Se excluyen por identidad los ítems ya elegidos como diagnóstica/final.
+      if (it === diagnostica || it === final) continue;
+      if ((it.itemtype || '').toLowerCase() !== 'mod') continue;
+
+      const nombre = String(it.itemname || '').trim();
+      if (!nombre) continue;
+      if (!this.isEvaluationActivityName(nombre)) continue;
+      // Red de seguridad: si el curso tiene más de una diagnóstica o más de una
+      // "Evaluación Final", ninguna variante debe colarse como evaluación de módulo.
+      if (this.isDiagnosticActivityName(nombre)) continue;
+      if (this.normalize(nombre).includes(finalPhrase)) continue;
+
+      const raw = typeof it.graderaw === 'number'
+        ? it.graderaw
+        : (it.graderaw != null ? Number(it.graderaw) : null);
+      // Un solo decimal, exactamente como NotaFinal y NotaDiagnostica
+      // (`graderaw.toFixed(1)`). Number() quita el 0 final, así que un 7 se
+      // muestra como "7" y no como "7.0", igual que las otras dos notas.
+      const nota = raw != null && Number.isFinite(raw) ? Number(raw.toFixed(1)) : null;
+
+      result.push({ nombre, nota });
+    }
+
+    return result;
   }
 
   private findDiagnosticaActivity(items: SimpleGradeItem[]): SimpleGradeItem | undefined {

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getInscripcionesCollection, getParticipantesCollection, getGradesReportsCollection } from '../db/mongo';
-import { StudentFinalGradeController } from './studentFinalGradeController';
+import { StudentFinalGradeController, EvaluacionModulo } from './studentFinalGradeController';
 
 export class ParticipantsGradesReportController {
   private finalCtrl: StudentFinalGradeController;
@@ -171,7 +171,7 @@ export class ParticipantsGradesReportController {
       return Number.isFinite(n) ? n : null;
     };
 
-    type NumericDoc = { numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null; NotaDiagnostica: number | null; UltimoAcceso: string | null };
+    type NumericDoc = { numeroInscripcion: number; IdCurso: string; RutAlumno: string; PorcentajeAvance: number | null; PorcentajeAsistenciaAlumno: number | null; NotaFinal: number | null; NotaDiagnostica: number | null; EvaluacionesModulo: EvaluacionModulo[]; UltimoAcceso: string | null };
 
     // Procesa un único participante: consulta Moodle y persiste el resultado
     const processParticipant = async (p: any): Promise<NumericDoc> => {
@@ -183,6 +183,7 @@ export class ParticipantsGradesReportController {
       let asistencia: number | null = null;
       let notaFinal: number | null = null;
       let notaDiagnostica: number | null = null;
+      let evaluacionesModulo: EvaluacionModulo[] = [];
       let ultimoAcceso: string | null = null;
       try {
         // @ts-ignore - reuse internal method
@@ -192,6 +193,14 @@ export class ParticipantsGradesReportController {
           asistencia = toNum((progress as any).PorcentajeAsistenciaAlumno);
           notaFinal = toNum((progress as any).NotaFinal);
           notaDiagnostica = toNum((progress as any).NotaDiagnostica);
+          // Evaluaciones por módulo: se normaliza la nota igual que las demás
+          // (null = no rindió) y se conserva el orden entregado por Moodle.
+          const evalsRaw = (progress as any).EvaluacionesModulo;
+          evaluacionesModulo = Array.isArray(evalsRaw)
+            ? evalsRaw
+                .map((e: any) => ({ nombre: String(e?.nombre || '').trim(), nota: toNum(e?.nota) }))
+                .filter((e: EvaluacionModulo) => e.nombre !== '')
+            : [];
           const ultimoAccesoRaw = String((progress as any).UltimoAcceso || '').trim();
           ultimoAcceso = ultimoAccesoRaw || null;
         }
@@ -205,6 +214,7 @@ export class ParticipantsGradesReportController {
         PorcentajeAsistenciaAlumno: asistencia,
         NotaFinal: notaFinal,
         NotaDiagnostica: notaDiagnostica,
+        EvaluacionesModulo: evaluacionesModulo,
         UltimoAcceso: ultimoAcceso,
       };
 
