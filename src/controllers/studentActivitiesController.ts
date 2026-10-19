@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { MoodleService } from '../services/moodleService';
+import { getMoodleForEmpresa } from '../services/moodleTenant';
 import { StudentProgressResponse } from '../types/studentProgress';
 import { Participante } from '../types/participante';
 import { getParticipantesCollection } from '../db/mongo';
@@ -35,6 +36,8 @@ export class StudentActivitiesController {
 
   // GET /api/grades/activities?username=...&courseId=...
   async getActivitiesGrades(req: Request, res: Response) {
+    // `?empresa=<code>` elige el Moodle de una empresa White Label.
+    const moodle = await getMoodleForEmpresa((req.query as any)?.empresa);
     const { username, courseId } = req.query as { username?: string; courseId?: string };
 
     try {
@@ -64,10 +67,10 @@ export class StudentActivitiesController {
       }
 
       // Resolve user by exact or partial username using Moodle first
-      let userLookup = await this.moodleService.getUserByUsername(username);
+      let userLookup = await moodle.getUserByUsername(username);
       let users = this.unwrapUsers(userLookup.data);
       if (!userLookup.success || users.length === 0) {
-        userLookup = await this.moodleService.searchUsersByPartialUsername(username);
+        userLookup = await moodle.searchUsersByPartialUsername(username);
         users = this.unwrapUsers(userLookup.data);
       }
 
@@ -87,10 +90,10 @@ export class StudentActivitiesController {
         }
         // Retry Moodle lookup with fuller username
         const altUsername = String(participant.rut || participant.numeroInscripcion);
-        userLookup = await this.moodleService.getUserByUsername(altUsername);
+        userLookup = await moodle.getUserByUsername(altUsername);
         users = this.unwrapUsers(userLookup.data);
         if (!userLookup.success || users.length === 0) {
-          userLookup = await this.moodleService.searchUsersByPartialUsername(altUsername);
+          userLookup = await moodle.searchUsersByPartialUsername(altUsername);
           users = this.unwrapUsers(userLookup.data);
         }
       }
@@ -116,7 +119,7 @@ export class StudentActivitiesController {
       const userId = user.id;
 
       // Fetch grades via Moodle service (handles primary + alternative functions)
-      const gradesResult = await this.moodleService.getUserGrades(courseIdNum, userId);
+      const gradesResult = await moodle.getUserGrades(courseIdNum, userId);
 
       if (!gradesResult.success) {
         const response: ActivitiesGradesResponse = {

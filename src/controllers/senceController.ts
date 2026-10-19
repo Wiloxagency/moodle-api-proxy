@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ObjectId } from 'mongodb';
+import { catalogScopeFilter, resolveCatalogScope } from '../utils/catalogScope';
 import { getSenceCollection } from '../db/mongo';
 import { Sence } from '../types/sence';
 
@@ -11,17 +12,20 @@ async function getNextCode(): Promise<number> {
 }
 
 export class SenceController {
-  async list(_req: Request, res: Response): Promise<void> {
+  // GET ?empresa=<code>: catálogo propio de un White Label; sin él, el global.
+  async list(req: Request, res: Response): Promise<void> {
     const col = await getSenceCollection();
-    const items = await col.find({}).sort({ code: 1 }).toArray();
+    const scope = await resolveCatalogScope((req.query as any)?.empresa);
+    const items = await col.find(catalogScopeFilter(scope) as any).sort({ code: 1 }).toArray();
     res.json({ success: true, data: items });
   }
 
   async create(req: Request, res: Response): Promise<void> {
     const col = await getSenceCollection();
-    const payload = req.body as Omit<Sence, 'code'>;
+    const { empresa: empresaRaw, ...payload } = req.body as Omit<Sence, 'code'> & { empresa?: unknown };
+    const scope = await resolveCatalogScope(empresaRaw ?? (req.query as any)?.empresa);
     const code = await getNextCode();
-    const doc: Sence = { code, ...payload };
+    const doc: Sence = { code, ...payload, ...(scope !== null ? { empresa: scope } : {}) };
     const result = await col.insertOne(doc);
     const created = await col.findOne({ _id: result.insertedId } as any);
     res.status(201).json({ success: true, data: created });
@@ -30,7 +34,8 @@ export class SenceController {
   async update(req: Request, res: Response): Promise<void> {
     const col = await getSenceCollection();
     const { id } = req.params as { id: string };
-    const { code, ...rest } = req.body as Partial<Sence>;
+    // `empresa` no se edita: un registro no cambia de ámbito (global / White Label).
+    const { code, empresa: _empresa, ...rest } = req.body as Partial<Sence> & { empresa?: unknown };
     await col.updateOne({ _id: new ObjectId(id) } as any, { $set: rest });
     const updated = await col.findOne({ _id: new ObjectId(id) } as any);
     res.json({ success: true, data: updated });
@@ -46,7 +51,9 @@ export class SenceController {
   // POST /api/sence/import/bulk
   // Body: { cursos: Array<Partial<Sence>> }
   async importBulk(req: Request, res: Response): Promise<void> {
-    const { cursos } = req.body as { cursos?: Array<Partial<Sence>> };
+    const { cursos, empresa } = req.body as { cursos?: Array<Partial<Sence>>; empresa?: unknown };
+    const scope = await resolveCatalogScope(empresa ?? (req.query as any)?.empresa);
+    const scopeFilter = catalogScopeFilter(scope);
 
     if (!cursos || !Array.isArray(cursos)) {
       res.status(400).json({ success: false, error: { message: 'cursos[] es requerido' } });
@@ -109,9 +116,10 @@ export class SenceController {
 
       ops.push({
         updateOne: {
-          filter: { codigo_sence: codigo },
+          filter: { codigo_sence: codigo, ...scopeFilter },
           update: {
             $set: base,
+            // Con ámbito White Label, `empresa` lo copia el upsert desde el filtro.
             $setOnInsert: { code: nextCode++ },
           },
           upsert: true,
@@ -127,7 +135,7 @@ export class SenceController {
     const result = await col.bulkWrite(ops, { ordered: false });
     const inserted = result.upsertedCount || 0;
     const updated = result.modifiedCount || 0;
-    const total = await col.countDocuments();
+    const total = await col.countDocuments(scopeFilter as any);
 
     res.json({ success: true, data: { inserted, updated, total } });
   }

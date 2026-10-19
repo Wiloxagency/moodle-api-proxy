@@ -6,6 +6,8 @@ export interface Modalidad {
   sincronico_online?: boolean;
   sincronico_presencial_moodle?: boolean;
   sincronico_presencial_no_moodle?: boolean;
+  /** Sólo en catálogos de un White Label (código de la empresa). Ausente = global. */
+  empresa?: number;
 }
 
 export type ModalidadWithId = Modalidad & { _id: string };

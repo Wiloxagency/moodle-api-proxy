@@ -12,15 +12,39 @@ import {
   ApiResponse 
 } from '../types/moodle';
 
+/**
+ * Conexión a un Moodle concreto. Sin argumentos usa el Moodle por defecto
+ * (MOODLE_BASE_URL / MOODLE_WS_TOKEN del .env), que es el de Edutecno y
+ * Click Laboral. Las empresas White Label traen su propio Moodle: ver
+ * services/moodleTenant.ts, que es quien decide qué conexión usar.
+ */
+export interface MoodleConnection {
+  baseUrl: string;
+  wsToken: string;
+  /** Versión mayor declarada (4 o 5). Undefined en el Moodle por defecto. */
+  version?: number;
+}
+
 export class MoodleService {
   private readonly baseUrl: string;
   private readonly wsToken: string;
   private readonly webserviceEndpoint: string;
+  readonly version?: number;
 
-  constructor() {
-    this.baseUrl = config.moodle.baseUrl;
-    this.wsToken = config.moodle.wsToken;
+  constructor(connection?: MoodleConnection) {
+    this.baseUrl = connection?.baseUrl || config.moodle.baseUrl;
+    this.wsToken = connection?.wsToken || config.moodle.wsToken;
+    this.version = connection?.version;
     this.webserviceEndpoint = config.moodle.webserviceEndpoint;
+  }
+
+  /** Identifica la conexión (para separar cachés entre Moodles distintos). */
+  get connectionKey(): string {
+    return `${this.baseUrl}|${this.wsToken}`;
+  }
+
+  get url(): string {
+    return this.baseUrl;
   }
 
   private buildUrl(params: MoodleWebServiceFullParams): string {

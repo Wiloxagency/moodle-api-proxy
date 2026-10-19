@@ -47,6 +47,8 @@ export interface Sence {
   // IDs externos opcionales
   id_sence?: string;
   id_moodle?: string;
+  /** Sólo en catálogos de un White Label (código de la empresa). Ausente = global. */
+  empresa?: number;
 }
 
 export type SenceWithId = Sence & { _id: string };

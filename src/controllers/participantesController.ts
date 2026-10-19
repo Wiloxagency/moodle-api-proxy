@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { ObjectId } from 'mongodb';
 import { getParticipantesCollection, getInscripcionesCollection } from '../db/mongo';
 import { MoodleService } from '../services/moodleService';
+import { getMoodleForInscripcion } from '../services/moodleTenant';
 import { Participante } from '../types/participante';
 
 function toNumber(v: any): number | undefined {
@@ -311,7 +312,7 @@ export class ParticipantesController {
       return res.status(400).json({ success: false, error: { message: 'La inscripción no tiene ID Moodle ni Código del Curso' } });
     }
 
-    const moodle = new MoodleService();
+    const moodle = await getMoodleForInscripcion(ins as any);
     const courseId = await resolveMoodleCourseId(moodle, providedCode);
     if (!courseId) {
       return res.status(404).json({ success: false, error: { message: 'No se encontró un curso en Moodle para el código proporcionado' } });
@@ -408,7 +409,7 @@ export class ParticipantesController {
       return res.status(400).json({ success: false, error: { message: 'La inscripción no tiene ID Moodle ni Código del Curso' } });
     }
 
-    const moodle = new MoodleService();
+    const moodle = await getMoodleForInscripcion(ins as any);
     const courseId = await resolveMoodleCourseId(moodle, providedCode);
 
     if (!courseId) {

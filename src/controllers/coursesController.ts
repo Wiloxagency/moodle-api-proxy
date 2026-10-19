@@ -1,13 +1,12 @@
 import { Request, Response } from 'express';
 import { MoodleService } from '../services/moodleService';
+import { getMoodleForEmpresa } from '../services/moodleTenant';
 import { createError } from '../middleware/errorHandler';
 
 export class CoursesController {
-  private moodleService: MoodleService;
-
-  constructor() {
-    this.moodleService = new MoodleService();
-  }
+  /** `?empresa=<code>` elige el Moodle de una empresa White Label; sin él, el Moodle por defecto. */
+  private moodleFor = (req: Request): Promise<MoodleService> =>
+    getMoodleForEmpresa((req.query as any)?.empresa);
 
   /**
    * Get courses by category ID
@@ -23,7 +22,7 @@ export class CoursesController {
     }
 
     // Call Moodle service
-    const result = await this.moodleService.getCoursesByCategory(categoryId);
+    const result = await (await this.moodleFor(req)).getCoursesByCategory(categoryId);
 
     if (!result.success) {
       throw createError(
@@ -58,7 +57,7 @@ export class CoursesController {
     }
 
     // Call Moodle service for simplified courses
-    const result = await this.moodleService.getSimplifiedCoursesByCategory(categoryId);
+    const result = await (await this.moodleFor(req)).getSimplifiedCoursesByCategory(categoryId);
 
     if (!result.success) {
       throw createError(
@@ -101,7 +100,7 @@ export class CoursesController {
     }
 
     // Call Moodle service
-    const result = await this.moodleService.getCoursesByField(field, value);
+    const result = await (await this.moodleFor(req)).getCoursesByField(field, value);
 
     if (!result.success) {
       throw createError(
@@ -142,7 +141,7 @@ export class CoursesController {
     }
 
     // Call Moodle service
-    const result = await this.moodleService.getCategories(parentId);
+    const result = await (await this.moodleFor(req)).getCategories(parentId);
 
     if (!result.success) {
       throw createError(
@@ -169,7 +168,7 @@ export class CoursesController {
    */
   getRootCategories = async (req: Request, res: Response): Promise<void> => {
     // Call Moodle service
-    const result = await this.moodleService.getRootCategories();
+    const result = await (await this.moodleFor(req)).getRootCategories();
 
     if (!result.success) {
       throw createError(
@@ -195,7 +194,7 @@ export class CoursesController {
    * GET /api/health
    */
   healthCheck = async (req: Request, res: Response): Promise<void> => {
-    const result = await this.moodleService.healthCheck();
+    const result = await (await this.moodleFor(req)).healthCheck();
 
     if (!result.success) {
       throw createError(

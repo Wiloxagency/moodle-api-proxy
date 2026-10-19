@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { MoodleService } from '../services/moodleService';
+import { getDefaultMoodle, getMoodleForEmpresa } from '../services/moodleTenant';
 import { Participante } from '../types/participante';
 import { getParticipantesCollection } from '../db/mongo';
 
@@ -94,8 +95,29 @@ export class StudentFinalGradeController {
   private courseUsersCache: Map<number, { expiresAt: number; index: CourseUserIndex }>;
   private diagnosticQuizCache: Map<number, { expiresAt: number; quiz: CourseQuizModule | null }>;
 
-  constructor() {
-    this.moodleService = new MoodleService();
+  /**
+   * Una instancia por Moodle: las cachés (alumnos por curso, quiz diagnóstico)
+   * van por id de curso, y los ids se repiten entre Moodles distintos.
+   */
+  private static byConnection = new Map<string, StudentFinalGradeController>();
+
+  static forMoodle(moodle: MoodleService): StudentFinalGradeController {
+    let ctrl = StudentFinalGradeController.byConnection.get(moodle.connectionKey);
+    if (!ctrl) {
+      ctrl = new StudentFinalGradeController(moodle);
+      StudentFinalGradeController.byConnection.set(moodle.connectionKey, ctrl);
+    }
+    return ctrl;
+  }
+
+  /** Para /api/grades/final: `?empresa=<code>` elige el Moodle (White Label). */
+  private async forRequest(req: Request): Promise<StudentFinalGradeController> {
+    const empresa = (req.query as any)?.empresa;
+    return StudentFinalGradeController.forMoodle(await getMoodleForEmpresa(empresa));
+  }
+
+  constructor(moodle?: MoodleService) {
+    this.moodleService = moodle || getDefaultMoodle();
     this.courseUsersCache = new Map();
     this.diagnosticQuizCache = new Map();
   }
@@ -118,6 +140,7 @@ export class StudentFinalGradeController {
 
       const passed: ProgressData[] = [];
       const failed: BatchRequestItem[] = [];
+      const ctrl = await this.forRequest(req);
 
       // Process each item in the batch
       for (const item of requestData) {
@@ -127,10 +150,10 @@ export class StudentFinalGradeController {
         }
 
         try {
-          const progress = await this.processSingleGrade(item.RutAlumno, item.IdCurso, item.correlative, item.Email || item.email);
+          const progress = await ctrl.processSingleGrade(item.RutAlumno, item.IdCurso, item.correlative, item.Email || item.email);
           if (progress) {
             // Ignore entries with Avance=100, Asistencia=0, NotaFinal=0
-            if (this.shouldIgnoreProgress(progress)) {
+            if (ctrl.shouldIgnoreProgress(progress)) {
               continue; // skip adding to passed or failed
             }
             passed.push(progress);
@@ -172,7 +195,8 @@ export class StudentFinalGradeController {
         return;
       }
 
-      const progress = await this.processSingleGrade(username || '', courseId, undefined, email);
+      const ctrl = await this.forRequest(req);
+      const progress = await ctrl.processSingleGrade(username || '', courseId, undefined, email);
       if (progress) {
         const data: FinalGradeResponseData = {
           found: true,

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { MoodleService } from '../services/moodleService';
+import { getMoodleForEmpresa } from '../services/moodleTenant';
 import { getParticipantesCollection } from '../db/mongo';
 import { StudentProgress, StudentProgressResponse } from '../types/studentProgress';
 import { Participante } from '../types/participante';
@@ -13,6 +14,8 @@ export class StudentProgressController {
 
   // GET /api/student-progress?username=45678974&courseId=123
   async getStudentProgress(req: Request, res: Response) {
+    // `?empresa=<code>` elige el Moodle de una empresa White Label.
+    const moodle = await getMoodleForEmpresa((req.query as any)?.empresa);
     const { username, courseId } = req.query as { username?: string; courseId?: string };
     
     try {
@@ -44,7 +47,7 @@ export class StudentProgressController {
       }
 
       // Get student progress data from Moodle
-      const moodleResult = await this.moodleService.getUserProgressInCourse(username, courseIdNum);
+      const moodleResult = await moodle.getUserProgressInCourse(username, courseIdNum);
 
       if (!moodleResult.success) {
         // Try partial username matching in local database
@@ -77,7 +80,7 @@ export class StudentProgressController {
 
         // If found in local DB, try again with the full username
         const fullUsername = String(participant.rut || participant.numeroInscripcion);
-        const retryResult = await this.moodleService.getUserProgressInCourse(fullUsername, courseIdNum);
+        const retryResult = await moodle.getUserProgressInCourse(fullUsername, courseIdNum);
         
         if (!retryResult.success) {
           // Return -1 values when progress data is unavailable

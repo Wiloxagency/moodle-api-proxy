@@ -6,6 +6,9 @@ const router = Router();
 const ctrl = new EmpresasController();
 
 router.get('/', asyncHandler(ctrl.list));
+router.get('/whitelabel', asyncHandler(ctrl.resolveWhiteLabel));
+router.post('/moodle/test', asyncHandler(ctrl.testMoodle));
+router.get('/:code/logo', asyncHandler(ctrl.logo));
 router.post('/', asyncHandler(ctrl.create));
 router.put('/:id', asyncHandler(ctrl.update));
 router.delete('/:id', asyncHandler(ctrl.remove));

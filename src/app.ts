@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { config } from './config/environment';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { findWhiteLabelByHost } from './services/moodleTenant';
 
 // Create Express application
 const app = express();
@@ -34,8 +35,15 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
-    return callback(new Error(msg), false);
+    // Los dominios White Label registrados en Empresas también son orígenes
+    // válidos, sin tener que tocar ALLOWED_ORIGINS en el .env por cada cliente.
+    findWhiteLabelByHost(origin)
+      .then((wl) => {
+        if (wl) return callback(null, true);
+        const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+        return callback(new Error(msg), false);
+      })
+      .catch((err) => callback(err, false));
   },
   credentials: true,
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

@@ -1,12 +1,11 @@
 import { Request, Response } from 'express';
 import { getInscripcionesCollection, getParticipantesCollection, getGradesReportsCollection } from '../db/mongo';
 import { StudentFinalGradeController, EvaluacionModulo } from './studentFinalGradeController';
+import { getMoodleForInscripcion } from '../services/moodleTenant';
 
 export class ParticipantsGradesReportController {
-  private finalCtrl: StudentFinalGradeController;
-  constructor() {
-    this.finalCtrl = new StudentFinalGradeController();
-  }
+  // El Moodle (y con él la instancia de StudentFinalGradeController) se elige
+  // por la empresa de cada inscripción: las White Label tienen el suyo.
 
   // GET /api/participantes/:numeroInscripcion/grades
   async getReport(req: Request, res: Response) {
@@ -35,6 +34,7 @@ export class ParticipantsGradesReportController {
     if (!ins) {
       return res.status(404).json({ success: false, error: { message: 'Inscripción no encontrada' } });
     }
+    const finalCtrl = StudentFinalGradeController.forMoodle(await getMoodleForInscripcion(ins as any));
 
     const idMoodleRaw = (ins as any).idMoodle as string | undefined;
     const codigoCursoRaw = (ins as any).codigoCurso as string | undefined;
@@ -68,8 +68,8 @@ export class ParticipantsGradesReportController {
     for (const it of items) {
       try {
         // @ts-ignore - access private via bracket for reuse
-        const progress = await (this.finalCtrl as any).processSingleGrade(it.RutAlumno, it.IdCurso, it.correlative, (it as any).Email);
-        if (progress && !(this.finalCtrl as any).shouldIgnoreProgress(progress)) {
+        const progress = await (finalCtrl as any).processSingleGrade(it.RutAlumno, it.IdCurso, it.correlative, (it as any).Email);
+        if (progress && !(finalCtrl as any).shouldIgnoreProgress(progress)) {
           // Regla: antes de la fecha de término no mostrar "Reprobado" (EstadoCurso '2')
           const estado = (progress as any).EstadoCurso;
           const adjusted = { ...progress } as any;
@@ -142,6 +142,7 @@ export class ParticipantsGradesReportController {
     if (!ins) {
       return res.status(404).json({ success: false, error: { message: 'Inscripción no encontrada' } });
     }
+    const finalCtrl = StudentFinalGradeController.forMoodle(await getMoodleForInscripcion(ins as any));
 
     const idMoodleRaw = (ins as any).idMoodle as string | undefined;
     const codigoCursoRaw = (ins as any).codigoCurso as string | undefined;
@@ -187,7 +188,7 @@ export class ParticipantsGradesReportController {
       let ultimoAcceso: string | null = null;
       try {
         // @ts-ignore - reuse internal method
-        const progress = await (this.finalCtrl as any).processSingleGrade(rut, courseId, rut, mail);
+        const progress = await (finalCtrl as any).processSingleGrade(rut, courseId, rut, mail);
         if (progress) {
           avance = toNum((progress as any).PorcentajeAvance);
           asistencia = toNum((progress as any).PorcentajeAsistenciaAlumno);
