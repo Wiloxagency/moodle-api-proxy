@@ -20,6 +20,15 @@ export interface Inscripcion {
   status?: string;
   status_vimica?: string;
   comentarios?: string;
+  // Archivada: la inscripción se conserva (no se elimina) pero queda fuera de
+  // los reportes, del dashboard, del cron de actualización y de VMICA. Se usa
+  // para fichas anuladas o duplicadas. Es reversible (Desarchivar).
+  archivada?: boolean;
+  archivadaAt?: string | null;
 }
+
+// Filtro Mongo para excluir las inscripciones archivadas. Los documentos
+// anteriores al cambio no tienen el campo, por eso es `$ne: true`.
+export const NO_ARCHIVADA = { archivada: { $ne: true } } as const;
 
 export type InscripcionWithId = Inscripcion & { _id: string };

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getDashboardCacheCollection, getEmpresasCollection, getGradesReportsCollection, getInscripcionesCollection, getParticipantesCollection } from '../db/mongo';
+import { NO_ARCHIVADA } from '../types/inscripcion';
 
 interface Metrics {
   becados: number;
@@ -59,7 +60,8 @@ async function buildCache(): Promise<DashboardCacheDoc> {
   ]);
 
   const [inscripciones, empresas] = await Promise.all([
-    insCol.find({}).toArray(),
+    // Las archivadas (fichas anuladas) no cuentan en el dashboard.
+    insCol.find(NO_ARCHIVADA as any).toArray(),
     empCol.find({}).toArray(),
   ]);
   const updatedAt = new Date().toISOString();

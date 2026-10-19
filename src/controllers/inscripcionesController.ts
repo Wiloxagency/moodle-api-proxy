@@ -171,6 +171,18 @@ export class InscripcionesController {
       const n = Number(rest.ejecutivo);
       if (Number.isFinite(n)) rest.ejecutivo = n;
     }
+    // Archivar / desarchivar. La fecha la pone el servidor; el formulario
+    // reenvía el documento completo al guardar, así que sólo se toca la fecha
+    // cuando el valor cambia de verdad.
+    delete rest.archivadaAt;
+    if (rest.archivada !== undefined) {
+      const archivar = rest.archivada === true || rest.archivada === 'true';
+      rest.archivada = archivar;
+      const actual = await col.findOne({ _id: new ObjectId(id) } as any, { projection: { archivada: 1 } } as any);
+      if (Boolean((actual as any)?.archivada) !== archivar) {
+        rest.archivadaAt = archivar ? new Date().toISOString() : null;
+      }
+    }
     await col.updateOne({ _id: new ObjectId(id) } as any, { $set: rest });
     const updated = await col.findOne({ _id: new ObjectId(id) } as any);
     res.json({ success: true, data: updated });

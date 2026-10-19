@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import { getGradesReportsCollection, getInscripcionesCollection, getParticipantesCollection, getVimicaCollection } from '../db/mongo';
+import { NO_ARCHIVADA } from '../types/inscripcion';
 
 interface EvaluacionModuloRow {
   nombre: string;
@@ -128,7 +129,8 @@ async function buildVimicaPayload(): Promise<VimicaPayload> {
     getGradesReportsCollection(),
   ]);
 
-  const inscripciones = await insCol.find({ empresa: empresaCode } as any).toArray();
+  // Una inscripción archivada (ficha anulada) no se reporta a VMICA.
+  const inscripciones = await insCol.find({ empresa: empresaCode, ...NO_ARCHIVADA } as any).toArray();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -274,7 +276,8 @@ export class ReportesController {
       getGradesReportsCollection(),
     ]);
 
-    const inscripciones = await insCol.find({}).toArray();
+    // Las archivadas (fichas anuladas) no aparecen en el reporte.
+    const inscripciones = await insCol.find(NO_ARCHIVADA as any).toArray();
     const reportDate = new Date().toISOString();
 
     if (!inscripciones.length) {

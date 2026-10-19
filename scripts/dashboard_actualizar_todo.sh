@@ -37,10 +37,14 @@ had_error=0
 # Esto sólo cambia QUÉ se refresca. No escribe ningún status, así que la regla
 # de cierre del paso 2 y el envío a VMICA del paso 4 (que filtra por
 # status_vimica, no por status) se comportan exactamente igual que antes.
+#
+# Las inscripciones ARCHIVADAS (fichas anuladas) nunca se refrescan ni se
+# cierran: quedan congeladas tal como estaban al archivarlas.
 HOY="$(date +%F)"
 if ! curl -fsS "$API_BASE/inscripciones" \
   | jq -r --arg hoy "$HOY" '
       .data[]
+      | select((.archivada // false) != true)
       | select(
           ((.status // "" | tostring | ascii_downcase) != "cerrada")
           or ((.termino // "" | tostring | .[0:10]) == "")
