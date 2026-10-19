@@ -78,6 +78,11 @@ interface CourseUserIndex {
   byUsername: Map<string, any>;
   byEmail: Map<string, any>;
   byIdnumber: Map<string, any>;
+  // username e idnumber SIN puntos, guiones ni espacios ("17.788.599-1" ->
+  // "177885991"). Permite casar un RUT guardado con otro formato que el de
+  // Moodle. Una clave compartida por dos usuarios distintos se descarta.
+  byCompactKey: Map<string, any>;
+  ambiguousCompactKeys: Set<string>;
   // Correos que aparecen en más de un matriculado (correos genéricos de
   // empresa). No sirven para identificar a nadie: se descartan al resolver.
   ambiguousEmails: Set<string>;
@@ -351,6 +356,8 @@ export class StudentFinalGradeController {
       byUsername: new Map<string, any>(),
       byEmail: new Map<string, any>(),
       byIdnumber: new Map<string, any>(),
+      byCompactKey: new Map<string, any>(),
+      ambiguousCompactKeys: new Set<string>(),
       ambiguousEmails: new Set<string>(),
       users: [],
     };
@@ -385,6 +392,14 @@ export class StudentFinalGradeController {
 
           const idnumber = this.normalizeKey((user as any).idnumber);
           if (idnumber && !index.byIdnumber.has(idnumber)) index.byIdnumber.set(idnumber, user);
+
+          for (const raw of [username, idnumber]) {
+            const ck = this.compactKey(raw);
+            if (ck.length < 5) continue;
+            const prev = index.byCompactKey.get(ck);
+            if (!prev) index.byCompactKey.set(ck, user);
+            else if (Number(prev.id) !== userId) index.ambiguousCompactKeys.add(ck);
+          }
         }
       }
     } catch (error) {
@@ -408,6 +423,10 @@ export class StudentFinalGradeController {
 
   private normalizeKey(value: any): string {
     return String(value ?? '').trim().toLowerCase();
+  }
+
+  private compactKey(value: any): string {
+    return this.normalizeKey(value).replace(/[.\-\s]/g, '');
   }
 
   /**
@@ -447,13 +466,22 @@ export class StudentFinalGradeController {
     if (!userKey) return undefined;
 
     // 5 — variantes del RUT: sin puntos/guion y sin dígito verificador.
-    const compact = userKey.replace(/[.\-\s]/g, '');
+    //
+    // Se comparan AMBOS lados sin puntos ni guion. Antes la variante compacta
+    // del participante ("177885991") se buscaba contra el username/idnumber
+    // de Moodle tal cual ("17788599-1"), así que un RUT guardado con puntos
+    // ("17.788.599-1") nunca casaba con un idnumber guardado con guion.
+    const compact = this.compactKey(userKey);
     const withoutDv = compact.replace(/[0-9k]$/, '');
     const variants = [compact, withoutDv].filter((v) => v.length >= 5);
 
     for (const variant of variants) {
       const hit = index.byUsername.get(variant) || index.byIdnumber.get(variant);
       if (hit) return hit;
+      if (!index.ambiguousCompactKeys.has(variant)) {
+        const compactHit = index.byCompactKey.get(variant);
+        if (compactHit) return compactHit;
+      }
     }
 
     // 6 — coincidencia por prefijo. Sólo se acepta si es inequívoca: si el
@@ -461,7 +489,7 @@ export class StudentFinalGradeController {
     for (const variant of [userKey, ...variants]) {
       if (variant.length < 5) continue;
       const prefixHits = index.users.filter((u: any) => {
-        const uname = this.normalizeKey(u.username).replace(/[.\-\s]/g, '');
+        const uname = this.compactKey(u.username);
         return uname !== '' && uname.startsWith(variant);
       });
       if (prefixHits.length === 1) return prefixHits[0];
